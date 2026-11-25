@@ -10,7 +10,11 @@ import {
   X,
 } from 'lucide-react';
 import type { TournamentState } from '../types/tournament.ts';
-import { formatScoreSummary, formatTournamentScheduleDate } from '../utils/tournamentLogic.ts';
+import {
+  TOURNAMENT_TIME_LABEL,
+  formatScoreSummary,
+  formatTournamentScheduleDate,
+} from '../utils/tournamentLogic.ts';
 
 interface VenueViewProps {
   state: TournamentState;
@@ -90,7 +94,8 @@ export function VenueView({ state, onOpenOperatorMatch }: VenueViewProps) {
             <MapPin className="w-3.5 h-3.5 shrink-0" />
             <span>
               {state.tournament.venue} · {state.tournament.city} ·{' '}
-              {formatTournamentScheduleDate(state.tournament.startDate, state.tournament.endDate)}
+              {formatTournamentScheduleDate(state.tournament.startDate, state.tournament.endDate)} ·{' '}
+              {TOURNAMENT_TIME_LABEL}
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-white">
@@ -194,7 +199,7 @@ export function VenueView({ state, onOpenOperatorMatch }: VenueViewProps) {
                       <span className="font-semibold text-emerald-400">LIVE</span>
                     ) : match ? (
                       <span className="font-mono text-amber-300 tabular-nums">
-                        {match.scheduledTime} WIB
+                        {match.scheduledTime} WITA
                       </span>
                     ) : (
                       <span className="text-blue-300/60">Kosong</span>

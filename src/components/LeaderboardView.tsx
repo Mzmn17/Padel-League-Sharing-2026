@@ -11,9 +11,13 @@ interface LeaderboardViewProps {
 export function LeaderboardView({ state, sseConnected }: LeaderboardViewProps) {
   const [categoryId, setCategoryId] = useState(state.categories[0]?.id || '');
 
-  const leaderboard = computeLeaderboard(state.teams, state.matches, categoryId);
+  const activeCategoryId = state.categories.some((c) => c.id === categoryId)
+    ? categoryId
+    : state.categories[0]?.id || '';
+
+  const leaderboard = computeLeaderboard(state.teams, state.matches, activeCategoryId);
   const categoryMatches = state.matches
-    .filter((m) => m.categoryId === categoryId && (m.status === 'completed' || m.status === 'live'))
+    .filter((m) => m.categoryId === activeCategoryId && (m.status === 'completed' || m.status === 'live'))
     .slice()
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
@@ -44,7 +48,7 @@ export function LeaderboardView({ state, sseConnected }: LeaderboardViewProps) {
             type="button"
             onClick={() => setCategoryId(cat.id)}
             className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-              categoryId === cat.id
+              activeCategoryId === cat.id
                 ? 'bg-blue-600 text-white'
                 : 'text-blue-200 hover:bg-[#0E266B] hover:text-white'
             }`}
@@ -60,7 +64,7 @@ export function LeaderboardView({ state, sseConnected }: LeaderboardViewProps) {
           <div className="px-6 py-4 border-b border-[#1B3782] flex items-center justify-between">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <Trophy className="w-4 h-4 text-amber-400" />
-              Klasemen {state.categories.find((c) => c.id === categoryId)?.name}
+              Klasemen {state.categories.find((c) => c.id === activeCategoryId)?.name}
             </h2>
             <span className="text-xs text-blue-200/75 tabular-nums">{leaderboard.length} pasangan</span>
           </div>

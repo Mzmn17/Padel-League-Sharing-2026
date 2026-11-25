@@ -4,6 +4,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  GitBranch,
   MapPin,
   MonitorPlay,
   Trophy,
@@ -11,11 +12,11 @@ import {
 } from 'lucide-react';
 import type { TournamentState } from '../types/tournament.ts';
 import {
+  TOURNAMENT_TIME_LABEL,
   findTeamForParticipant,
   formatScoreSummary,
   formatTournamentScheduleDate,
 } from '../utils/tournamentLogic.ts';
-import tournamentBannerImg from '../assets/images/WhatsApp Image 2026-11-24 at 11.29.56.jpeg';
 
 interface OverviewViewProps {
   state: TournamentState;
@@ -59,39 +60,35 @@ export function OverviewView({
   return (
     <div className="space-y-8">
       {/* Tournament Label Banner + Control Header */}
-      <section className="bg-[#0A1D52] border border-[#1B3782] rounded-xl overflow-hidden">
-        <div className="w-full bg-[#06133B] border-b border-[#1B3782]">
+      <section className="bg-[#030A21] border border-[#11245E] rounded-xl overflow-hidden">
+        <div className="w-full bg-[#020718] border-b border-[#11245E]">
           <img
-            src={tournamentBannerImg}
+            src="/assets/aistudio/WhatsApp_Image_2026-11-25_at_15.16.33_d0fd0900.jpeg"
             alt="Padel League & Share 2026 — Sulawesi Edition"
             referrerPolicy="no-referrer"
-            className="w-full h-auto max-h-[290px] object-contain mx-auto block"
+            className="w-full h-auto max-h-[320px] object-contain mx-auto block"
           />
         </div>
 
         <div className="p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
           <div className="space-y-2.5 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-blue-200/75">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-blue-100/75">
               <span>{state.tournament.venue}</span>
               <span aria-hidden="true">·</span>
               <span>{state.tournament.city}</span>
               <span aria-hidden="true">·</span>
-              <span className="tabular-nums font-semibold text-sky-300">
+              <span className="tabular-nums font-semibold text-[#E7F028]">
                 {formatTournamentScheduleDate(state.tournament.startDate, state.tournament.endDate)}
               </span>
-              {state.tournament.startDate === state.tournament.endDate && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>1 Hari Pertandingan</span>
-                </>
-              )}
+              <span aria-hidden="true">·</span>
+              <span className="tabular-nums font-semibold text-white">{TOURNAMENT_TIME_LABEL}</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white text-balance">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E7F028] text-balance">
               {state.tournament.name === 'Padel League & Share'
                 ? 'Padel League & Share 2026'
                 : state.tournament.name}
             </h1>
-            <p className="text-sm sm:text-base font-semibold text-sky-300">
+            <p className="text-sm sm:text-base font-semibold text-white">
               {state.tournament.caption &&
               (state.tournament.caption.toLowerCase().includes('retail sales') ||
                 state.tournament.caption.toLowerCase().includes('awarding') ||
@@ -99,7 +96,7 @@ export function OverviewView({
                 ? 'Sulawesi Edition'
                 : state.tournament.caption || 'Sulawesi Edition'}
             </p>
-            <p className="text-sm text-blue-100/80 leading-relaxed">
+            <p className="text-sm text-slate-300/85 leading-relaxed">
               Pusat kendali turnamen padel: kelola peserta individu &amp; region, pembentukan
               pasangan manual, pembagian court, skor langsung operator, leaderboard real-time,
               display LED arena, dan denah venue.
@@ -111,7 +108,7 @@ export function OverviewView({
               <button
                 type="button"
                 onClick={onOpenRegisterModal}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer flex-1"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-700 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer flex-1"
               >
                 <Users className="w-4 h-4" />
                 Daftar Peserta
@@ -119,20 +116,20 @@ export function OverviewView({
               <button
                 type="button"
                 onClick={onOpenLedView}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0D2363] hover:bg-[#132E7D] text-white border border-[#284BA8] text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#061238] hover:bg-[#0B1D54] text-white border border-[#19327D] text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
-                <MonitorPlay className="w-4 h-4" />
+                <MonitorPlay className="w-4 h-4 text-[#E7F028]" />
                 Display LED
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-2 bg-[#06133B] border border-[#1B3782] rounded-lg px-3 py-2">
-              <span className="text-xs font-mono truncate text-blue-200/85">{publicUrl}</span>
+            <div className="flex items-center justify-between gap-2 bg-[#020718] border border-[#11245E] rounded-lg px-3 py-2">
+              <span className="text-xs font-mono truncate text-slate-300/85">{publicUrl}</span>
               <div className="flex items-center gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={handleCopyPublic}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-100 hover:text-white whitespace-nowrap cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-white hover:text-[#E7F028] whitespace-nowrap cursor-pointer"
                 >
                   {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   {copiedLink ? 'Tersalin' : 'Salin'}
@@ -140,7 +137,7 @@ export function OverviewView({
                 <button
                   type="button"
                   onClick={onOpenPublicView}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-sky-300 hover:text-sky-200 whitespace-nowrap cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#E7F028] hover:text-[#f2f966] whitespace-nowrap cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   Buka
@@ -186,8 +183,7 @@ export function OverviewView({
             {state.courts.length}
           </p>
           <p className="mt-1 text-xs text-blue-200/75">
-            {state.courts.filter((c) => c.isIndoor).length} indoor ·{' '}
-            {state.courts.filter((c) => !c.isIndoor).length} outdoor
+            {state.courts.map((c) => c.name.replace(/^Court\s+/i, '')).join(', ')}
           </p>
         </div>
       </section>
@@ -237,10 +233,6 @@ export function OverviewView({
                   <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="font-semibold text-white">{court.name}</span>
-                      <span aria-hidden="true" className="text-blue-400/50">
-                        ·
-                      </span>
-                      <span className="text-blue-200/75">{court.surface}</span>
                       {liveOnCourt ? (
                         <>
                           <span aria-hidden="true" className="text-blue-400/50">
@@ -254,7 +246,7 @@ export function OverviewView({
                             ·
                           </span>
                           <span className="text-amber-300 font-medium tabular-nums">
-                            Berikutnya {activeMatch.scheduledTime} WIB
+                            Berikutnya {activeMatch.scheduledTime} WITA
                           </span>
                         </>
                       ) : null}
@@ -351,11 +343,19 @@ export function OverviewView({
           <div className="px-6 py-4 bg-[#071540] border-t border-[#1B3782] flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
+              onClick={() => onNavigate('bracket')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#E7F028] hover:text-[#f2f966] cursor-pointer"
+            >
+              <GitBranch className="w-4 h-4" />
+              Bagan 3 Kategori
+            </button>
+            <button
+              type="button"
               onClick={() => onNavigate('leaderboard')}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-100 hover:text-white cursor-pointer"
             >
               <Trophy className="w-4 h-4 text-amber-400" />
-              Buka Live Leaderboard
+              Leaderboard
             </button>
             <button
               type="button"
@@ -363,7 +363,7 @@ export function OverviewView({
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-300 hover:text-sky-200 cursor-pointer"
             >
               <MapPin className="w-4 h-4" />
-              Lihat Denah Venue
+              Denah Venue
             </button>
           </div>
         </div>

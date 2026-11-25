@@ -1,8 +1,8 @@
 # Firestore Security Specification (Phase 0)
 
 ## Data Invariants
-1. All tournament documents (`categories`, `courts`, `participants`, `teams`, `matches`) belong strictly to `tournamentId == "pls-2026"` and cannot be orphaned or given arbitrary IDs > 64 chars.
-2. Only verified authenticated administrators (`muhazman441@gmail.com` with `email_verified == true` or users present in `/admins/{uid}`) may mutate `tournaments`, `categories`, `courts`, `teams`, `matches`, or edit/delete `participants`.
+1. All tournament documents (`categories`, `courts`, `participants`, `teams`, `matches`, `brackets`) belong strictly to `tournamentId == "pls-2026"` and cannot be orphaned or given arbitrary IDs > 64 chars.
+2. Verified authenticated administrators (`muhazman441@gmail.com` with `email_verified == true` or users present in `/admins/{uid}`, plus authenticated Panitia sessions on server API routes) hold equal administrative authority to mutate `tournaments`, `categories`, `courts`, `teams`, `matches`, `brackets`, `/admins`, or edit/delete `participants`.
 3. Verified signed-in users may create a new `participant` only with `status == "registered"`, `createdByUid == request.auth.uid`, and an existing `categoryId` in `/categories/{categoryId}`.
 4. `participants` and `teams` contain zero PII (no phone numbers, no emails, no addresses). `/admins/{uid}` is strictly isolated so only the owner (`request.auth.uid == uid`) or an admin can read it.
 5. `createdAt` / `serverCreatedAt` are immutable after creation; `serverUpdatedAt` must equal `request.time`.

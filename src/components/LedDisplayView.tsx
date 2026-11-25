@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Maximize2, Minimize2, Radio } from 'lucide-react';
 import type { TournamentState } from '../types/tournament.ts';
 import {
+  TOURNAMENT_TIME_LABEL,
   formatScoreSummary,
   formatTournamentScheduleDate,
   getCourtLedFocusSlots,
@@ -23,7 +24,11 @@ export function LedDisplayView({
   const [rotateIndex, setRotateIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [nowClock, setNowClock] = useState(() =>
-    new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    new Date().toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Makassar',
+    })
   );
 
   const courtSlots = getCourtLedFocusSlots(state.courts, state.matches);
@@ -34,7 +39,13 @@ export function LedDisplayView({
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setNowClock(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+      setNowClock(
+        new Date().toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Makassar',
+        })
+      );
     }, 15000);
     return () => clearInterval(timer);
   }, []);
@@ -96,7 +107,7 @@ export function LedDisplayView({
                   state.tournament.caption.toLowerCase().includes('padel turnamen'))
                   ? 'Sulawesi Edition'
                   : state.tournament.caption || 'Sulawesi Edition') + ' · '}
-                {state.tournament.venue} · {scheduleDateLabel}
+                {state.tournament.venue} · {scheduleDateLabel} · {TOURNAMENT_TIME_LABEL}
               </p>
             </div>
           </div>
@@ -108,7 +119,7 @@ export function LedDisplayView({
               )}
               <span>{sseConnected ? 'LIVE FEED' : 'RECONNECTING'}</span>
               <span className="text-blue-400/50">|</span>
-              <span className="text-lg font-bold text-white tabular-nums">{nowClock} WIB</span>
+              <span className="text-lg font-bold text-white tabular-nums">{nowClock} WITA</span>
             </div>
 
             <button
@@ -251,7 +262,7 @@ export function LedDisplayView({
                       <span className="text-xs sm:text-sm font-semibold text-blue-100 truncate">
                         {activeMatch
                           ? `${cat?.name || ''} · ${activeMatch.stage}`
-                          : `${slot.court.surface} · ${slot.court.isIndoor ? 'Indoor' : 'Outdoor'}`}
+                          : 'Standby'}
                       </span>
                     </div>
 
@@ -262,7 +273,7 @@ export function LedDisplayView({
                         </span>
                       ) : isScheduledNext && activeMatch ? (
                         <span className="text-xs font-mono font-bold text-amber-300 tracking-wider tabular-nums">
-                          BERIKUTNYA · {activeMatch.scheduledTime} WIB
+                          BERIKUTNYA · {activeMatch.scheduledTime} WITA
                         </span>
                       ) : activeMatch ? (
                         <span className="text-xs font-mono font-bold text-sky-300 tracking-wider">
@@ -431,7 +442,7 @@ export function LedDisplayView({
                                 Jadwal Main
                               </div>
                               <div className="font-mono text-2xl sm:text-3xl font-extrabold text-white tabular-nums">
-                                {activeMatch.scheduledTime} WIB
+                                {activeMatch.scheduledTime} WITA
                               </div>
                             </>
                           ) : (

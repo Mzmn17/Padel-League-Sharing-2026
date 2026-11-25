@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
+  Check,
   CheckCircle2,
   Lock,
   Minus,
   Play,
   Plus,
   RotateCcw,
+  Save,
   Trophy,
 } from 'lucide-react';
 import type {
@@ -19,6 +21,7 @@ import {
   applyPadelPoint,
   createInitialScore,
   formatScoreSummary,
+  setManualPadelScore,
 } from '../utils/tournamentLogic.ts';
 
 interface OperatorScoreViewProps {
@@ -55,10 +58,36 @@ export function OperatorScoreView({
 
   const [history, setHistory] = useState<PadelScoreState[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savedToast, setSavedToast] = useState(false);
+
+  const [draftPointA, setDraftPointA] = useState('0');
+  const [draftPointB, setDraftPointB] = useState('0');
+  const [draftSets, setDraftSets] = useState<Array<{ teamA: string; teamB: string }>>([
+    { teamA: '0', teamB: '0' },
+  ]);
 
   useEffect(() => {
     setHistory([]);
+    setSavedToast(false);
   }, [activeMatch?.id]);
+
+  useEffect(() => {
+    if (!activeMatch) return;
+    setDraftPointA(activeMatch.score.currentPointA || '0');
+    setDraftPointB(activeMatch.score.currentPointB || '0');
+    setDraftSets(
+      activeMatch.score.sets.map((s) => ({
+        teamA: String(s.teamA ?? 0),
+        teamB: String(s.teamB ?? 0),
+      }))
+    );
+  }, [
+    activeMatch?.id,
+    activeMatch?.updatedAt,
+    activeMatch?.score.currentPointA,
+    activeMatch?.score.currentPointB,
+    activeMatch?.score.sets,
+  ]);
 
   if (!activeMatch) {
     return (
@@ -115,6 +144,32 @@ export function OperatorScoreView({
     const nextStatus: MatchStatus =
       activeMatch.status === 'scheduled' ? 'live' : activeMatch.status;
     await commitScore(nextScore, nextStatus);
+  };
+
+  const handleApplyManualScore = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!isAdmin) {
+      onRequireAdminLogin();
+      return;
+    }
+    setHistory((prev) => [...prev.slice(-15), activeMatch.score]);
+    const parsedSets = draftSets.map((s) => ({
+      teamA: Number.parseInt(s.teamA, 10) || 0,
+      teamB: Number.parseInt(s.teamB, 10) || 0,
+    }));
+    const nextScore = setManualPadelScore(activeMatch.score, {
+      sets: parsedSets,
+      currentPointA: draftPointA,
+      currentPointB: draftPointB,
+    });
+    const nextStatus: MatchStatus = nextScore.winnerSide
+      ? 'completed'
+      : activeMatch.status === 'scheduled'
+        ? 'live'
+        : activeMatch.status;
+    await commitScore(nextScore, nextStatus);
+    setSavedToast(true);
+    window.setTimeout(() => setSavedToast(false), 2000);
   };
 
   const handleUndo = async () => {
@@ -191,8 +246,8 @@ export function OperatorScoreView({
             Konsol Input Skor Operator
           </h1>
           <p className="text-sm text-blue-200/75">
-            Setiap poin atau skor game yang diinput otomatis sinkron ke Live Leaderboard, Link
-            Publik, dan Display LED.
+            Admin &amp; Panitia dapat menekan tombol poin atau mengetik skor set dan poin secara
+            manual. Sinkron otomatis ke Live Leaderboard, Link Publik, dan Display LED.
           </p>
         </div>
         {!isAdmin && (
@@ -212,8 +267,8 @@ export function OperatorScoreView({
           <div className="flex items-center gap-2.5 text-xs sm:text-sm text-blue-100">
             <Lock className="w-4 h-4 text-sky-300 shrink-0" />
             <span>
-              Mode Lihat Skor: Anda sedang melihat skor langsung. Login sebagai Admin untuk
-              mengubah poin rally, skor game/set, atau mengakhiri pertandingan.
+              Mode Lihat Skor: Anda sedang melihat skor langsung. Login sebagai Admin atau Panitia
+              untuk mengetik skor manual, mengubah poin rally, atau mengakhiri pertandingan.
             </span>
           </div>
           <button
@@ -232,7 +287,7 @@ export function OperatorScoreView({
           <div className="px-4 py-3 border-b border-[#1B3782] bg-[#071540] text-xs font-bold text-blue-100">
             Pilih Pertandingan ({orderedMatches.length})
           </div>
-          <div className="divide-y divide-[#1B3782] max-h-[540px] overflow-y-auto">
+          <div className="divide-y divide-[#1B3782] max-h-[580px] overflow-y-auto">
             {orderedMatches.map((m) => {
               const tA = state.teams.find((t) => t.id === m.teamAId);
               const tB = state.teams.find((t) => t.id === m.teamBId);
@@ -249,7 +304,7 @@ export function OperatorScoreView({
                 >
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="font-mono font-semibold text-blue-200/80 tabular-nums">
-                      Match #{m.matchNumber} · {crt?.name.split('·')[0].trim() || 'Court -'}
+                      Match #{m.matchNumber} · {crt?.name || 'Court -'}
                     </span>
                     <span
                       className={`font-semibold ${
@@ -264,7 +319,7 @@ export function OperatorScoreView({
                         ? 'LIVE'
                         : m.status === 'completed'
                           ? 'Selesai'
-                          : `${m.scheduledTime} WIB`}
+                          : `${m.scheduledTime} WITA`}
                     </span>
                   </div>
                   <div className="mt-1 text-sm font-semibold text-white truncate">
@@ -337,8 +392,8 @@ export function OperatorScoreView({
             </div>
           </div>
 
-          {/* Live Point Control Board */}
-          <div className="divide-y divide-[#1B3782]">
+          <form onSubmit={handleApplyManualScore} className="divide-y divide-[#1B3782]">
+            {/* Live Point Control Board */}
             <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[#1B3782]">
               {/* Team A Zone */}
               <div
@@ -383,6 +438,27 @@ export function OperatorScoreView({
                     +1 Poin A
                   </button>
                 </div>
+
+                {isAdmin && (
+                  <div className="mt-4 pt-3 border-t border-[#1B3782]/70 flex items-center justify-between gap-3">
+                    <label
+                      htmlFor="manual-point-a"
+                      className="text-xs font-medium text-blue-200/80 whitespace-nowrap"
+                    >
+                      Ketik Poin A:
+                    </label>
+                    <input
+                      id="manual-point-a"
+                      aria-label="Ketik poin manual Pasangan A"
+                      type="text"
+                      maxLength={8}
+                      value={draftPointA}
+                      onChange={(e) => setDraftPointA(e.target.value)}
+                      placeholder="0 / 15 / 30 / 40 / AD"
+                      className="w-28 px-2.5 py-1.5 text-center font-mono text-sm font-bold bg-[#06133B] border border-[#284BA8] rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Team B Zone */}
@@ -428,24 +504,66 @@ export function OperatorScoreView({
                     +1 Poin B
                   </button>
                 </div>
+
+                {isAdmin && (
+                  <div className="mt-4 pt-3 border-t border-[#1B3782]/70 flex items-center justify-between gap-3">
+                    <label
+                      htmlFor="manual-point-b"
+                      className="text-xs font-medium text-blue-200/80 whitespace-nowrap"
+                    >
+                      Ketik Poin B:
+                    </label>
+                    <input
+                      id="manual-point-b"
+                      aria-label="Ketik poin manual Pasangan B"
+                      type="text"
+                      maxLength={8}
+                      value={draftPointB}
+                      onChange={(e) => setDraftPointB(e.target.value)}
+                      placeholder="0 / 15 / 30 / 40 / AD"
+                      className="w-28 px-2.5 py-1.5 text-center font-mono text-sm font-bold bg-[#06133B] border border-[#284BA8] rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Direct Set Game Editor */}
+            {/* Direct Set Game Editor (Manual Typing + Stepper) */}
             <div>
-              <div className="px-6 py-3 bg-[#071540] border-b border-[#1B3782] flex items-center justify-between">
+              <div className="px-6 py-3 bg-[#071540] border-b border-[#1B3782] flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-xs font-bold text-blue-100">
-                  Skor Game Per Set (Koreksi / Input Langsung)
+                  Skor Game Per Set (Ketik Manual / +/- Langsung)
                 </h3>
-                {isAdmin && activeMatch.score.sets.length < 3 && (
-                  <button
-                    type="button"
-                    onClick={handleAddSetColumn}
-                    className="text-xs font-semibold text-sky-300 hover:text-sky-200 cursor-pointer"
-                  >
-                    + Tambah Set
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {isAdmin && activeMatch.score.sets.length < 3 && (
+                    <button
+                      type="button"
+                      onClick={handleAddSetColumn}
+                      className="text-xs font-semibold text-sky-300 hover:text-sky-200 cursor-pointer"
+                    >
+                      + Tambah Set
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E7F028] hover:bg-[#f2f966] disabled:opacity-50 text-[#06133B] text-xs font-bold rounded-md cursor-pointer"
+                    >
+                      {savedToast ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          Tersimpan
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-3.5 h-3.5" />
+                          Simpan Skor Manual
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -465,7 +583,7 @@ export function OperatorScoreView({
                       <td className="py-3 px-6 font-semibold text-white">{teamA?.teamName}</td>
                       {activeMatch.score.sets.map((s, idx) => (
                         <td key={idx} className="py-3 px-4">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
                               disabled={!isAdmin || saving}
@@ -475,9 +593,28 @@ export function OperatorScoreView({
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="w-8 text-center font-mono text-lg font-bold text-white tabular-nums">
-                              {s.teamA}
-                            </span>
+                            {isAdmin ? (
+                              <input
+                                type="number"
+                                min={0}
+                                max={20}
+                                aria-label={`Skor Set ${idx + 1} ${teamA?.teamName}`}
+                                value={draftSets[idx]?.teamA ?? String(s.teamA)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setDraftSets((prev) =>
+                                    prev.map((row, rIdx) =>
+                                      rIdx === idx ? { ...row, teamA: val } : row
+                                    )
+                                  );
+                                }}
+                                className="w-12 py-1 text-center font-mono text-base font-bold text-white bg-[#06133B] border border-[#284BA8] rounded tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            ) : (
+                              <span className="w-8 text-center font-mono text-lg font-bold text-white tabular-nums">
+                                {s.teamA}
+                              </span>
+                            )}
                             <button
                               type="button"
                               disabled={!isAdmin || saving}
@@ -495,7 +632,7 @@ export function OperatorScoreView({
                       <td className="py-3 px-6 font-semibold text-white">{teamB?.teamName}</td>
                       {activeMatch.score.sets.map((s, idx) => (
                         <td key={idx} className="py-3 px-4">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
                               disabled={!isAdmin || saving}
@@ -505,9 +642,28 @@ export function OperatorScoreView({
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="w-8 text-center font-mono text-lg font-bold text-white tabular-nums">
-                              {s.teamB}
-                            </span>
+                            {isAdmin ? (
+                              <input
+                                type="number"
+                                min={0}
+                                max={20}
+                                aria-label={`Skor Set ${idx + 1} ${teamB?.teamName}`}
+                                value={draftSets[idx]?.teamB ?? String(s.teamB)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setDraftSets((prev) =>
+                                    prev.map((row, rIdx) =>
+                                      rIdx === idx ? { ...row, teamB: val } : row
+                                    )
+                                  );
+                                }}
+                                className="w-12 py-1 text-center font-mono text-base font-bold text-white bg-[#06133B] border border-[#284BA8] rounded tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            ) : (
+                              <span className="w-8 text-center font-mono text-lg font-bold text-white tabular-nums">
+                                {s.teamB}
+                              </span>
+                            )}
                             <button
                               type="button"
                               disabled={!isAdmin || saving}
@@ -577,7 +733,7 @@ export function OperatorScoreView({
                 )}
               </div>
             </div>
-          </div>
+          </form>
         </section>
       </div>
     </div>

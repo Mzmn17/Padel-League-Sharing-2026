@@ -239,6 +239,37 @@ export function adjustSetGames(
   };
 }
 
+export function setManualPadelScore(
+  prev: PadelScoreState,
+  input: {
+    sets: SetScore[];
+    currentPointA: string;
+    currentPointB: string;
+  }
+): PadelScoreState {
+  const sanitizedSets = (input.sets.length > 0 ? input.sets : [{ teamA: 0, teamB: 0 }])
+    .slice(0, 5)
+    .map((s) => ({
+      teamA: Math.max(0, Math.min(20, Math.trunc(Number(s.teamA) || 0))),
+      teamB: Math.max(0, Math.min(20, Math.trunc(Number(s.teamB) || 0))),
+    }));
+
+  const cleanPoint = (raw: string): string => {
+    const trimmed = raw.trim().toUpperCase();
+    if (!trimmed) return '0';
+    return trimmed.slice(0, 8);
+  };
+
+  const matchWinner = determineMatchWinner(sanitizedSets);
+  return {
+    ...prev,
+    sets: sanitizedSets,
+    currentPointA: cleanPoint(input.currentPointA),
+    currentPointB: cleanPoint(input.currentPointB),
+    winnerSide: matchWinner,
+  };
+}
+
 export function computeLeaderboard(
   teams: Team[],
   matches: Match[],
@@ -513,11 +544,13 @@ export function buildWhatsAppScheduleMessage(params: {
     `Kategori: ${categoryName} · ${match.stage}`,
     `Match #${match.matchNumber}: *${teamA.teamName}* vs *${teamB.teamName}*`,
     `Court: *${courtName}*`,
-    `Jadwal: ${match.scheduledDate} pukul ${match.scheduledTime} WIB`,
+    `Jadwal: ${match.scheduledDate} pukul ${match.scheduledTime} WITA`,
     '',
     `Pantau skor live & leaderboard: ${publicUrl}`,
   ].join('\n');
 }
+
+export const TOURNAMENT_TIME_LABEL = 'Start 07:30 WITA – Selesai';
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const BULAN_ID = [

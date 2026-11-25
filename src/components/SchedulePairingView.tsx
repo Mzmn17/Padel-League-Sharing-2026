@@ -11,7 +11,11 @@ import {
   X,
 } from 'lucide-react';
 import type { Match, MatchStatus, TournamentState } from '../types/tournament.ts';
-import { formatScoreSummary, formatTournamentScheduleDate } from '../utils/tournamentLogic.ts';
+import {
+  TOURNAMENT_TIME_LABEL,
+  formatScoreSummary,
+  formatTournamentScheduleDate,
+} from '../utils/tournamentLogic.ts';
 
 interface SchedulePairingViewProps {
   state: TournamentState;
@@ -43,6 +47,8 @@ interface SchedulePairingViewProps {
       scheduledTime?: string;
       status?: MatchStatus;
       stage?: string;
+      teamAId?: string;
+      teamBId?: string;
       ignoreConflict?: boolean;
       notifyWhatsApp?: boolean;
     }
@@ -75,6 +81,8 @@ export function SchedulePairingView({
   const [showAutoModal, setShowAutoModal] = useState(false);
   const [showCourtModal, setShowCourtModal] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
+  const [pendingDeleteMatch, setPendingDeleteMatch] = useState<Match | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
@@ -89,6 +97,26 @@ export function SchedulePairingView({
       if (cmpTime !== 0) return cmpTime;
       return a.matchNumber - b.matchNumber;
     });
+
+  const handleConfirmDelete = async (match: Match) => {
+    setDeletingId(match.id);
+    setFeedback(null);
+    try {
+      await onDeleteMatch(match.id);
+      setFeedback({
+        type: 'success',
+        text: `Jadwal Match #${match.matchNumber} berhasil dihapus.`,
+      });
+      setPendingDeleteMatch(null);
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Gagal menghapus jadwal pertandingan.',
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleCallToCourt = async (match: Match) => {
     try {
@@ -120,8 +148,8 @@ export function SchedulePairingView({
             <span className="font-semibold text-sky-300">
               {formatTournamentScheduleDate(state.tournament.startDate, state.tournament.endDate)}
             </span>{' '}
-            {state.tournament.startDate === state.tournament.endDate ? '(1 Hari Penuh)' : ''} ·
-            Pembaruan jadwal otomatis mengirim notifikasi WhatsApp ke seluruh pemain.
+            · <span className="font-semibold text-white">{TOURNAMENT_TIME_LABEL}</span> · Pembaruan
+            jadwal otomatis mengirim notifikasi WhatsApp ke seluruh pemain.
           </p>
         </div>
 
@@ -249,9 +277,6 @@ export function SchedulePairingView({
             >
               <div className="px-4 py-3 bg-[#071540] border-b border-[#1B3782]">
                 <div className="text-sm font-bold text-white">{court.name}</div>
-                <div className="text-xs text-blue-200/75">
-                  {court.surface} · {court.isIndoor ? 'Indoor' : 'Outdoor'}
-                </div>
               </div>
               <div className="divide-y divide-[#1B3782] flex-1">
                 {courtMatches.length === 0 ? (
@@ -265,7 +290,7 @@ export function SchedulePairingView({
                       <div key={m.id} className="p-3.5 space-y-2">
                         <div className="flex items-center justify-between gap-2 text-xs">
                           <span className="font-mono font-semibold text-blue-200 tabular-nums">
-                            {m.scheduledTime} WIB · #{m.matchNumber}
+                            {m.scheduledTime} WITA · #{m.matchNumber}
                           </span>
                           <span
                             className={`font-semibold ${
@@ -376,7 +401,7 @@ export function SchedulePairingView({
                         {court?.name || 'Belum ditentukan'}
                       </td>
                       <td className="py-3 px-4 font-mono text-xs text-blue-100 tabular-nums whitespace-nowrap">
-                        {m.scheduledDate} · {m.scheduledTime} WIB
+                        {m.scheduledDate} · {m.scheduledTime} WITA
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span
@@ -416,7 +441,7 @@ export function SchedulePairingView({
                             </button>
                             <button
                               type="button"
-                              onClick={() => onDeleteMatch(m.id)}
+                              onClick={() => setPendingDeleteMatch(m)}
                               aria-label={`Hapus Match #${m.matchNumber}`}
                               className="p-1.5 text-red-400 hover:text-red-200 border border-[#284BA8] hover:bg-red-950/60 rounded-md cursor-pointer"
                             >
@@ -535,7 +560,7 @@ function ManualMatchModal({
   const [stage, setStage] = useState('Fase Grup A');
   const [courtId, setCourtId] = useState(state.courts[0]?.id || '');
   const [scheduledDate, setScheduledDate] = useState(state.tournament.startDate);
-  const [scheduledTime, setScheduledTime] = useState('15:00');
+  const [scheduledTime, setScheduledTime] = useState('07:30');
   const [notifyWhatsApp, setNotifyWhatsApp] = useState(true);
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -683,10 +708,29 @@ function ManualMatchModal({
               <input
                 id="m-stage"
                 type="text"
+                list="bracket-stage-presets"
                 value={stage}
                 onChange={(e) => setStage(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
+              <datalist id="bracket-stage-presets">
+                <option value="Fase Grup A" />
+                <option value="Fase Grup B" />
+                <option value="Babak Gugur" />
+                <option value="Bagan M-01 · PUTARAN PERTAMA" />
+                <option value="Bagan M-02 · BABAK AWAL" />
+                <option value="Bagan AWAL 1 · PUTARAN PERTAMA" />
+                <option value="Bagan AWAL 2 · PUTARAN PERTAMA" />
+                <option value="Bagan AWAL 3 · PUTARAN PERTAMA" />
+                <option value="Bagan QF-1 · PEREMPAT FINAL" />
+                <option value="Bagan QF-2 · PEREMPAT FINAL" />
+                <option value="Bagan QF-3 · PEREMPAT FINAL" />
+                <option value="Bagan QF-4 · PEREMPAT FINAL" />
+                <option value="Bagan SF-1 · SEMIFINAL" />
+                <option value="Bagan SF-2 · SEMIFINAL" />
+                <option value="Bagan FINAL · PARTAI PUNCAK" />
+                <option value="Bagan JUARA 3 · PEREBUTAN JUARA 3" />
+              </datalist>
             </div>
             <div>
               <label htmlFor="m-court" className="block text-xs font-semibold text-blue-100 mb-1">
@@ -724,7 +768,7 @@ function ManualMatchModal({
             </div>
             <div>
               <label htmlFor="m-time" className="block text-xs font-semibold text-blue-100 mb-1">
-                Jam (WIB)
+                Jam (WITA)
               </label>
               <input
                 id="m-time"
@@ -788,7 +832,7 @@ function AutoPairModal({
   const [mode, setMode] = useState<'round_robin' | 'knockout'>('round_robin');
   const [stage, setStage] = useState('Fase Grup');
   const [scheduledDate, setScheduledDate] = useState(state.tournament.startDate);
-  const [startTime, setStartTime] = useState('14:00');
+  const [startTime, setStartTime] = useState('07:30');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -854,7 +898,15 @@ function AutoPairModal({
             <select
               id="ap-mode"
               value={mode}
-              onChange={(e) => setMode(e.target.value as 'round_robin' | 'knockout')}
+              onChange={(e) => {
+                const nextMode = e.target.value as 'round_robin' | 'knockout';
+                setMode(nextMode);
+                if (nextMode === 'knockout' && stage === 'Fase Grup') {
+                  setStage('Babak Gugur');
+                } else if (nextMode === 'round_robin' && stage === 'Babak Gugur') {
+                  setStage('Fase Grup');
+                }
+              }}
               className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
             >
               <option value="round_robin">Round Robin (Semua Pasangan Saling Bertemu)</option>
@@ -1065,7 +1117,7 @@ function EditScheduleModal({
             </div>
             <div>
               <label htmlFor="ed-time" className="block text-xs font-semibold text-blue-100 mb-1">
-                Jam (WIB)
+                Jam (WITA)
               </label>
               <input
                 id="ed-time"
@@ -1085,10 +1137,24 @@ function EditScheduleModal({
               <input
                 id="ed-stage"
                 type="text"
+                list="bracket-stage-presets-edit"
                 value={stage}
                 onChange={(e) => setStage(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
+              <datalist id="bracket-stage-presets-edit">
+                <option value="Fase Grup A" />
+                <option value="Babak Gugur" />
+                <option value="Bagan M-01 · PUTARAN PERTAMA" />
+                <option value="Bagan QF-1 · PEREMPAT FINAL" />
+                <option value="Bagan QF-2 · PEREMPAT FINAL" />
+                <option value="Bagan QF-3 · PEREMPAT FINAL" />
+                <option value="Bagan QF-4 · PEREMPAT FINAL" />
+                <option value="Bagan SF-1 · SEMIFINAL" />
+                <option value="Bagan SF-2 · SEMIFINAL" />
+                <option value="Bagan FINAL · PARTAI PUNCAK" />
+                <option value="Bagan JUARA 3 · PEREBUTAN JUARA 3" />
+              </datalist>
             </div>
             <div>
               <label htmlFor="ed-status" className="block text-xs font-semibold text-blue-100 mb-1">
@@ -1149,8 +1215,6 @@ function AddCourtModal({
   onSubmit: (payload: { name: string; surface: string; isIndoor: boolean }) => Promise<void>;
 }) {
   const [name, setName] = useState('');
-  const [surface, setSurface] = useState('Mondo Supercourt Blue');
-  const [isIndoor, setIsIndoor] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1158,7 +1222,8 @@ function AddCourtModal({
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await onSubmit({ name: name.trim(), surface: surface.trim(), isIndoor });
+      const cleaned = name.replace(/\s*\(Indoor\)/gi, '').trim();
+      await onSubmit({ name: cleaned || name.trim(), surface: 'Indoor', isIndoor: true });
     } finally {
       setSaving(false);
     }
@@ -1174,7 +1239,7 @@ function AddCourtModal({
       <div className="bg-[#0A1D52] border border-[#1B3782] rounded-xl w-full max-w-sm overflow-hidden shadow-2xl">
         <div className="px-6 py-4 border-b border-[#1B3782] bg-[#081744] flex items-center justify-between">
           <h2 id="add-court-title" className="text-base font-bold text-white">
-            Tambah Lapangan / Court
+            Tambah Court
           </h2>
           <button type="button" onClick={onClose} aria-label="Tutup" className="cursor-pointer">
             <X className="w-5 h-5 text-blue-200 hover:text-white" />
@@ -1184,7 +1249,7 @@ function AddCourtModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label htmlFor="c-name" className="block text-xs font-semibold text-blue-100 mb-1">
-              Nama Court *
+              Nomor / Nama Court *
             </label>
             <input
               id="c-name"
@@ -1192,31 +1257,10 @@ function AddCourtModal({
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Contoh: Court 5 · Rooftop Glass"
+              placeholder="Contoh: Court 6"
               className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white placeholder:text-blue-300/50"
             />
           </div>
-          <div>
-            <label htmlFor="c-surf" className="block text-xs font-semibold text-blue-100 mb-1">
-              Jenis Lantai / Karpet
-            </label>
-            <input
-              id="c-surf"
-              type="text"
-              value={surface}
-              onChange={(e) => setSurface(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-xs text-blue-100 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isIndoor}
-              onChange={(e) => setIsIndoor(e.target.checked)}
-              className="rounded border-[#284BA8]"
-            />
-            Court Indoor (Atap Tertutup)
-          </label>
           <div className="pt-2 flex justify-end gap-2">
             <button
               type="button"

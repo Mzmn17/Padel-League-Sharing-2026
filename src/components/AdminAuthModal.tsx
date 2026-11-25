@@ -145,7 +145,8 @@ export function AdminAuthModal({
             <div className="space-y-4">
               <p className="text-xs text-blue-200/85 leading-relaxed">
                 <strong>Super Admin</strong> login menggunakan Google (<strong>muhazman441@gmail.com</strong>).
-                Super Admin memiliki wewenang penuh menyimpan dan mengelola database Cloud Firestore utama.
+                Memiliki hak akses penuh yang setara dengan Admin Panitia untuk mengelola peserta,
+                bagan pertandingan, jadwal, dan skor manual.
               </p>
 
               <button
@@ -163,8 +164,9 @@ export function AdminAuthModal({
           ) : (
             <form onSubmit={handleStaffSignIn} className="space-y-4">
               <p className="text-xs text-blue-200/85 leading-relaxed">
-                <strong>Admin Panitia</strong> login via Username &amp; Password untuk merubah skor,
-                jadwal, dan data peserta. Data otomatis tersimpan dan sinkron ke Cloud Super Admin.
+                <strong>Admin Panitia</strong> memiliki hak akses penuh yang setara dengan Super
+                Admin untuk mengedit bagan pertandingan, mengetik skor manual, mengatur jadwal &amp;
+                court, serta mengelola peserta.
               </p>
 
               <div className="space-y-3">

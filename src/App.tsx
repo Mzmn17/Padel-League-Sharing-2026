@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import {
   CalendarClock,
   ExternalLink,
+  GitBranch,
   LayoutDashboard,
   Lock,
   LogOut,
@@ -23,6 +24,7 @@ import {
 import { useTournamentStream } from './hooks/useTournamentStream.ts';
 import { OverviewView } from './components/OverviewView.tsx';
 import { ParticipantsView } from './components/ParticipantsView.tsx';
+import { BracketView } from './components/BracketView.tsx';
 import { SchedulePairingView } from './components/SchedulePairingView.tsx';
 import { OperatorScoreView } from './components/OperatorScoreView.tsx';
 import { LeaderboardView } from './components/LeaderboardView.tsx';
@@ -36,6 +38,7 @@ type ViewMode = 'organizer' | 'public' | 'led';
 type OrganizerTab =
   | 'overview'
   | 'participants'
+  | 'bracket'
   | 'schedule'
   | 'operator'
   | 'leaderboard'
@@ -73,6 +76,8 @@ export default function App() {
     updateMatchScore,
     deleteMatch,
     addCourt,
+    updateBracket,
+    resetBracket,
     resetDemo,
   } = useTournamentStream();
 
@@ -202,6 +207,7 @@ export default function App() {
   const navItems: Array<{ id: OrganizerTab; label: string; icon: typeof LayoutDashboard }> = [
     { id: 'overview', label: 'Beranda', icon: LayoutDashboard },
     { id: 'participants', label: 'Peserta & Pasangan', icon: Users },
+    { id: 'bracket', label: 'Bagan Pertandingan', icon: GitBranch },
     { id: 'schedule', label: 'Pairing & Jadwal', icon: CalendarClock },
     { id: 'operator', label: 'Operator Skor', icon: SlidersHorizontal },
     { id: 'leaderboard', label: 'Live Leaderboard', icon: Trophy },
@@ -257,6 +263,15 @@ export default function App() {
               }`}
             >
               Peserta
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('bracket')}
+              className={`hover:text-white transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                activeTab === 'bracket' ? 'text-white font-semibold' : ''
+              }`}
+            >
+              Bagan
             </button>
             <button
               type="button"
@@ -342,7 +357,7 @@ export default function App() {
         <aside
           className={`${
             mobileMenuOpen ? 'fixed inset-0 top-16 z-40 bg-[#081744] block' : 'hidden'
-          } lg:block lg:static lg:w-64 shrink-0 border-r border-[#1B3782] bg-[#081744] p-4 space-y-6`}
+          } lg:block lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto lg:w-64 shrink-0 border-r border-[#1B3782] bg-[#081744] p-4 space-y-6`}
         >
           <div className="space-y-1">
             <p className="px-3 pb-1 text-xs font-semibold text-blue-300/60">Menu Turnamen</p>
@@ -479,6 +494,28 @@ export default function App() {
               onPairParticipants={pairParticipants}
               onUpdateTeam={updateTeam}
               onDeleteTeam={deleteTeam}
+              onNavigateToBracket={() => {
+                setActiveTab('bracket');
+                setMobileMenuOpen(false);
+              }}
+            />
+          )}
+
+          {activeTab === 'bracket' && (
+            <BracketView
+              state={state}
+              isAdmin={isAdmin}
+              onRequireAdminLogin={() =>
+                openAdminLogin('Login sebagai Admin atau Panitia untuk mengedit bagan pertandingan.')
+              }
+              onUpdateBracket={updateBracket}
+              onResetBracket={resetBracket}
+              onCreateMatch={createMatch}
+              onOpenOperatorMatch={handleOpenOperatorMatch}
+              onNavigateToParticipants={() => {
+                setActiveTab('participants');
+                setMobileMenuOpen(false);
+              }}
             />
           )}
 

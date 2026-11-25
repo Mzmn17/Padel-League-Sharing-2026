@@ -15,6 +15,11 @@ export const FIRESTORE_LIMITS = {
   DATE_MAX: 20,
   TIME_MAX: 10,
   MAX_SETS: 5,
+  BRACKET_TITLE_MAX: 100,
+  BRACKET_SUBTITLE_MAX: 160,
+  BRACKET_TEAM_NAME_MAX: 160,
+  BRACKET_SCORE_MAX: 40,
+  BRACKET_SLOTS_MAX: 24,
 } as const;
 
 export function sanitizeText(value: string | undefined | null, maxLen: number, fallback = ''): string {

@@ -5,6 +5,8 @@ import path from 'node:path';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import type {
+  BracketSlot,
+  CategoryBracket,
   Match,
   MatchStatus,
   Participant,
@@ -13,6 +15,12 @@ import type {
   WhatsAppEventType,
   WhatsAppProvider,
 } from './src/types/tournament.ts';
+import {
+  cloneInitialBrackets,
+  mergeWithDefaultBrackets,
+  syncAllBracketsWithTeamsAndMatches,
+  syncBracketWithTeamsAndMatches,
+} from './src/utils/tournamentBracket.ts';
 import {
   buildDefaultPairName,
   createInitialScore,
@@ -29,6 +37,7 @@ import {
   loadStore,
   resetSeedStore,
   saveStore,
+  touchStoreRevision,
 } from './server/store.ts';
 import {
   dispatchMatchWhatsAppNotifications,
@@ -206,6 +215,23 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ authenticated: false });
 });
 
+// Exchange Google Super Admin login for backend JWT admin token
+app.post('/api/auth/google-admin', (req, res) => {
+  const { email } = req.body ?? {};
+  const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const isSuperAdmin = cleanEmail === 'muhazman441@gmail.com';
+  if (!isSuperAdmin) {
+    res.status(403).json({ error: 'Email bukan Super Admin yang terdaftar.' });
+    return;
+  }
+  const token = createAdminToken(cleanEmail);
+  res.json({
+    authenticated: true,
+    username: cleanEmail,
+    token,
+  });
+});
+
 // Register a single individual participant (no WhatsApp required, includes Region & Perwakilan)
 app.post('/api/participants', (req, res) => {
   const store = loadStore();
@@ -239,6 +265,7 @@ app.post('/api/participants', (req, res) => {
   };
 
   store.participants.push(newParticipant);
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.status(201).json({ participant: newParticipant, state: getPublicState(store) });
@@ -293,6 +320,7 @@ app.put('/api/participants/:id', requireAdmin, (req, res) => {
     }
   }
 
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.json({ participant, state: getPublicState(store) });
@@ -331,6 +359,7 @@ app.delete('/api/participants/:id', requireAdmin, (req, res) => {
   }
 
   store.participants = store.participants.filter((p) => p.id !== participant.id);
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.json({ state: getPublicState(store) });
@@ -420,6 +449,7 @@ app.post('/api/teams/pair', requireAdmin, (req, res) => {
   };
 
   store.teams.push(newTeam);
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.status(201).json({ team: newTeam, state: getPublicState(store) });
@@ -544,6 +574,7 @@ app.post('/api/teams', (req, res) => {
   };
 
   store.teams.push(newTeam);
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.status(201).json({ team: newTeam, state: getPublicState(store) });
@@ -623,6 +654,7 @@ app.put('/api/teams/:id', requireAdmin, (req, res) => {
       : buildDefaultPairName(team.player1.name, team.player2.name);
   }
 
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.json({ team, state: getPublicState(store) });
@@ -657,6 +689,7 @@ app.delete('/api/teams/:id', requireAdmin, (req, res) => {
   }
 
   store.teams = store.teams.filter((t) => t.id !== req.params.id);
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.json({ state: getPublicState(store) });
@@ -745,6 +778,7 @@ app.post('/api/matches', requireAdmin, async (req, res) => {
     store.whatsappLogs.unshift(...logs);
   }
 
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.status(201).json({ match: newMatch, state: getPublicState(store) });
@@ -828,6 +862,7 @@ app.post('/api/matches/auto-pair', requireAdmin, async (req, res) => {
     }
   }
 
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.status(201).json({ createdCount: createdMatches.length, state: getPublicState(store) });
@@ -842,12 +877,25 @@ app.put('/api/matches/:id/schedule', requireAdmin, async (req, res) => {
     return;
   }
 
-  const { courtId, scheduledDate, scheduledTime, status, stage, ignoreConflict, notifyWhatsApp = true } =
-    req.body ?? {};
+  const {
+    courtId,
+    scheduledDate,
+    scheduledTime,
+    status,
+    stage,
+    teamAId,
+    teamBId,
+    ignoreConflict,
+    notifyWhatsApp = true,
+  } = req.body ?? {};
 
   const nextCourtId = courtId !== undefined ? courtId : match.courtId;
   const nextDate = scheduledDate ?? match.scheduledDate;
   const nextTime = scheduledTime ?? match.scheduledTime;
+  const nextTeamAId =
+    teamAId && store.teams.some((t) => t.id === teamAId) ? teamAId : match.teamAId;
+  const nextTeamBId =
+    teamBId && store.teams.some((t) => t.id === teamBId) ? teamBId : match.teamBId;
 
   if (!ignoreConflict) {
     const conflict = detectScheduleConflict(store.matches, {
@@ -855,14 +903,17 @@ app.put('/api/matches/:id/schedule', requireAdmin, async (req, res) => {
       courtId: nextCourtId,
       scheduledDate: nextDate,
       scheduledTime: nextTime,
-      teamAId: match.teamAId,
-      teamBId: match.teamBId,
+      teamAId: nextTeamAId,
+      teamBId: nextTeamBId,
     });
     if (conflict) {
       res.status(409).json({ error: conflict.message, conflict });
       return;
     }
   }
+
+  match.teamAId = nextTeamAId;
+  match.teamBId = nextTeamBId;
 
   const prevCourtId = match.courtId;
   const prevStatus = match.status;
@@ -910,6 +961,7 @@ app.put('/api/matches/:id/schedule', requireAdmin, async (req, res) => {
     }
   }
 
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.json({ match, generatedLogs, state: getPublicState(store) });
@@ -935,6 +987,7 @@ app.put('/api/matches/:id/score', requireAdmin, (req, res) => {
   }
   match.updatedAt = new Date().toISOString();
 
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.json({ match, state: getPublicState(store) });
@@ -944,6 +997,7 @@ app.put('/api/matches/:id/score', requireAdmin, (req, res) => {
 app.delete('/api/matches/:id', requireAdmin, (req, res) => {
   const store = loadStore();
   store.matches = store.matches.filter((m) => m.id !== req.params.id);
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.json({ state: getPublicState(store) });
@@ -957,16 +1011,100 @@ app.post('/api/courts', requireAdmin, (req, res) => {
     res.status(400).json({ error: 'Nama court wajib diisi.' });
     return;
   }
+  const cleanName = String(name).replace(/\s*\(Indoor\)/gi, '').trim();
   const newCourt = {
     id: `court-${crypto.randomUUID().slice(0, 8)}`,
-    name: name.trim(),
-    surface: typeof surface === 'string' && surface.trim() ? surface.trim() : 'Mondo Supercourt',
-    isIndoor: Boolean(isIndoor),
+    name: cleanName || name.trim(),
+    surface: typeof surface === 'string' && surface.trim() ? surface.trim() : 'Indoor',
+    isIndoor: Boolean(isIndoor ?? true),
   };
   store.courts.push(newCourt);
+  touchStoreRevision(store);
   saveStore(store);
   broadcastState();
   res.status(201).json({ court: newCourt, state: getPublicState(store) });
+});
+
+// Update tournament bracket for a category (Admin only)
+app.put('/api/brackets/:categoryId', requireAdmin, (req, res) => {
+  const store = loadStore();
+  const categoryId = req.params.categoryId;
+  store.brackets = mergeWithDefaultBrackets(store.brackets);
+  const idx = store.brackets.findIndex((b) => b.categoryId === categoryId || b.id === categoryId);
+  if (idx === -1) {
+    res.status(404).json({ error: 'Bagan kategori tidak ditemukan.' });
+    return;
+  }
+
+  const existing = store.brackets[idx];
+  const body = req.body ?? {};
+  const nextSlots: BracketSlot[] = Array.isArray(body.slots)
+    ? body.slots.slice(0, 24).map((s: BracketSlot, sIdx: number) => ({
+        ...(existing.slots[sIdx] || {}),
+        ...s,
+        teamAName: String(s.teamAName ?? '').slice(0, 160),
+        teamBName: String(s.teamBName ?? '').slice(0, 160),
+        teamAId: typeof s.teamAId === 'string' && s.teamAId.trim() ? s.teamAId.trim().slice(0, 64) : null,
+        teamBId: typeof s.teamBId === 'string' && s.teamBId.trim() ? s.teamBId.trim().slice(0, 64) : null,
+        linkedMatchId:
+          typeof s.linkedMatchId === 'string' && s.linkedMatchId.trim()
+            ? s.linkedMatchId.trim().slice(0, 64)
+            : null,
+        scoreA: String(s.scoreA ?? '').slice(0, 20),
+        scoreB: String(s.scoreB ?? '').slice(0, 20),
+        winnerSide: s.winnerSide === 'A' || s.winnerSide === 'B' ? s.winnerSide : null,
+      }))
+    : existing.slots;
+
+  const updatedRaw: CategoryBracket = {
+    ...existing,
+    title: typeof body.title === 'string' && body.title.trim() ? body.title.trim().slice(0, 100) : existing.title,
+    subtitle:
+      typeof body.subtitle === 'string' && body.subtitle.trim()
+        ? body.subtitle.trim().slice(0, 160)
+        : existing.subtitle,
+    slots: nextSlots,
+    championName:
+      typeof body.championName === 'string' ? body.championName.slice(0, 160) : existing.championName,
+    ...(existing.thirdPlaceTitle !== undefined
+      ? {
+          thirdPlaceName:
+            typeof body.thirdPlaceName === 'string'
+              ? body.thirdPlaceName.slice(0, 160)
+              : existing.thirdPlaceName || '',
+        }
+      : {}),
+    ...(typeof body.footerNote === 'string' ? { footerNote: body.footerNote.slice(0, 300) } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updated = syncBracketWithTeamsAndMatches(updatedRaw, store.teams, store.matches);
+  store.brackets[idx] = updated;
+  store.brackets = syncAllBracketsWithTeamsAndMatches(store.brackets, store.teams, store.matches);
+  touchStoreRevision(store);
+  saveStore(store);
+  broadcastState();
+  res.json({ bracket: store.brackets[idx], state: getPublicState(store) });
+});
+
+// Reset a single category bracket back to PDF defaults (Admin only)
+app.post('/api/brackets/:categoryId/reset', requireAdmin, (req, res) => {
+  const store = loadStore();
+  const categoryId = req.params.categoryId;
+  const def = cloneInitialBrackets().find(
+    (b) => b.categoryId === categoryId || b.id === categoryId
+  );
+  if (!def) {
+    res.status(404).json({ error: 'Bagan kategori tidak ditemukan.' });
+    return;
+  }
+  store.brackets = mergeWithDefaultBrackets(store.brackets).map((b) =>
+    b.categoryId === def.categoryId ? def : b
+  );
+  touchStoreRevision(store);
+  saveStore(store);
+  broadcastState();
+  res.json({ bracket: def, state: getPublicState(store) });
 });
 
 // Configure WhatsApp Gateway (Admin only)

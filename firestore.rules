@@ -22,15 +22,14 @@ service cloud.firestore {
     }
 
     function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isSuperAdmin() {
-      return request.auth != null && request.auth.token.email == 'muhazman441@gmail.com';
+      return request.auth != null && request.auth.token.email_verified == true;
     }
 
     function isAdmin() {
-      return request.auth != null;
+      return isSignedIn() && (
+        request.auth.token.email == 'muhazman441@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
     }
 
     function categoryExists(categoryId) {
@@ -203,6 +202,35 @@ service cloud.firestore {
         && data.serverUpdatedAt is timestamp;
     }
 
+    function isValidBracket(data) {
+      return data.keys().hasAll([
+          'id', 'tournamentId', 'categoryId', 'title', 'subtitle',
+          'rounds', 'slots', 'championTitle', 'championName', 'updatedAt', 'serverUpdatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'tournamentId', 'categoryId', 'title', 'subtitle',
+          'rounds', 'slots', 'championTitle', 'championName',
+          'thirdPlaceTitle', 'thirdPlaceName', 'footerNote', 'updatedAt', 'serverUpdatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.tournamentId)
+        && data.tournamentId == 'pls-2026'
+        && isValidId(data.categoryId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && data.subtitle is string && data.subtitle.size() >= 1 && data.subtitle.size() <= 160
+        && data.rounds is list && data.rounds.size() >= 1 && data.rounds.size() <= 8
+        && data.rounds[0] is string && data.rounds[0].size() <= 60
+        && data.slots is list && data.slots.size() >= 1 && data.slots.size() <= 24
+        && data.slots[0] is map
+        && data.championTitle is string && data.championTitle.size() >= 1 && data.championTitle.size() <= 40
+        && data.championName is string && data.championName.size() <= 160
+        && (!('thirdPlaceTitle' in data) || (data.thirdPlaceTitle is string && data.thirdPlaceTitle.size() <= 40))
+        && (!('thirdPlaceName' in data) || (data.thirdPlaceName is string && data.thirdPlaceName.size() <= 160))
+        && (!('footerNote' in data) || (data.footerNote is string && data.footerNote.size() <= 300))
+        && data.updatedAt is string && data.updatedAt.size() >= 1 && data.updatedAt.size() <= 40
+        && data.serverUpdatedAt is timestamp;
+    }
+
     function isValidAdminUser(data, uid) {
       return data.keys().hasAll(['uid', 'email', 'role', 'createdAt'])
         && data.keys().hasOnly(['uid', 'email', 'role', 'createdAt'])
@@ -352,15 +380,39 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(matchId);
     }
 
+    match /brackets/{bracketId} {
+      allow get: if isValidId(bracketId);
+      allow list: if existing().tournamentId == 'pls-2026';
+      allow create: if isAdmin()
+        && isValidId(bracketId)
+        && isValidBracket(incoming())
+        && incoming().id == bracketId
+        && incoming().serverUpdatedAt == request.time
+        && categoryExists(incoming().categoryId);
+      allow update: if isAdmin()
+        && isValidId(bracketId)
+        && isValidBracket(incoming())
+        && incoming().id == existing().id
+        && incoming().tournamentId == existing().tournamentId
+        && incoming().categoryId == existing().categoryId
+        && incoming().serverUpdatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'subtitle', 'rounds', 'slots',
+          'championTitle', 'championName', 'thirdPlaceTitle', 'thirdPlaceName',
+          'footerNote', 'updatedAt', 'serverUpdatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(bracketId);
+    }
+
     match /admins/{uid} {
       allow get: if isSignedIn() && isValidId(uid) && (request.auth.uid == uid || isAdmin());
       allow list: if isAdmin();
-      allow create: if isSuperAdmin()
+      allow create: if isAdmin()
         && isValidId(uid)
         && isValidAdminUser(incoming(), uid)
         && incoming().createdAt == request.time;
       allow update: if false;
-      allow delete: if isSuperAdmin() && isValidId(uid) && uid != request.auth.uid;
+      allow delete: if isAdmin() && isValidId(uid) && uid != request.auth.uid;
     }
   }
 }

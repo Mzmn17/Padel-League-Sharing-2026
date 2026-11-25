@@ -123,6 +123,28 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Bracket": {
+      "title": "Bracket",
+      "description": "Editable knockout bracket tree for a tournament category.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "categoryId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "subtitle": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "rounds": { "type": "array", "maxItems": 8 },
+        "slots": { "type": "array", "maxItems": 24 },
+        "championTitle": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "championName": { "type": "string", "maxLength": 160 },
+        "thirdPlaceTitle": { "type": "string", "maxLength": 40 },
+        "thirdPlaceName": { "type": "string", "maxLength": 160 },
+        "footerNote": { "type": "string", "maxLength": 300 },
+        "updatedAt": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "serverUpdatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "tournamentId", "categoryId", "title", "subtitle", "rounds", "slots", "championTitle", "championName", "updatedAt", "serverUpdatedAt"]
     }
   },
   "firestore": {
@@ -132,7 +154,7 @@
     },
     "/categories/{categoryId}": {
       "schema": { "$ref": "#/entities/Category" },
-      "description": "Tournament categories including Men's Open, Women's Open, Mixed Doubles, Double Man, and Bronze."
+      "description": "Tournament categories: Men's Beginner, Men's Intermediate, and Women's Doubles."
     },
     "/courts/{courtId}": {
       "schema": { "$ref": "#/entities/Court" },
@@ -149,6 +171,10 @@
     "/matches/{matchId}": {
       "schema": { "$ref": "#/entities/Match" },
       "description": "Match schedules and live scoring state."
+    },
+    "/brackets/{bracketId}": {
+      "schema": { "$ref": "#/entities/Bracket" },
+      "description": "Knockout tournament brackets per category."
     },
     "/admins/{uid}": {
       "schema": { "$ref": "#/entities/AdminUser" },

@@ -2,7 +2,7 @@ export type MatchStatus = 'scheduled' | 'live' | 'completed' | 'postponed';
 
 export type TeamStatus = 'registered' | 'checked_in' | 'withdrawn';
 
-export type WhatsAppProvider = 'simulated' | 'fonnte' | 'meta_cloud' | 'webhook';
+export type WhatsAppProvider = 'simulated' | 'fonnte' | 'meta_cloud' | 'webhook' | 'ultramsg';
 
 export interface TournamentInfo {
   id: string;
@@ -140,6 +140,50 @@ export interface LeaderboardRow {
   points: number;
 }
 
+export interface BracketSlot {
+  id: string;
+  roundIndex: number;
+  roundLabel: string;
+  code: string;
+  note?: string;
+  teamALabel?: string;
+  teamBLabel?: string;
+  teamAName: string;
+  teamBName: string;
+  teamAId?: string | null;
+  teamBId?: string | null;
+  linkedMatchId?: string | null;
+  scoreA: string;
+  scoreB: string;
+  winnerSide: 'A' | 'B' | null;
+  sourceA?: {
+    matchId: string;
+    type: 'winner' | 'loser';
+    placeholder: string;
+  };
+  sourceB?: {
+    matchId: string;
+    type: 'winner' | 'loser';
+    placeholder: string;
+  };
+  isThirdPlace?: boolean;
+}
+
+export interface CategoryBracket {
+  id: string;
+  categoryId: string;
+  title: string;
+  subtitle: string;
+  rounds: string[];
+  slots: BracketSlot[];
+  championTitle: string;
+  championName: string;
+  thirdPlaceTitle?: string;
+  thirdPlaceName?: string;
+  footerNote?: string;
+  updatedAt: string;
+}
+
 export interface TournamentState {
   tournament: TournamentInfo;
   categories: Category[];
@@ -147,6 +191,9 @@ export interface TournamentState {
   participants: Participant[];
   teams: Team[];
   matches: Match[];
+  brackets?: CategoryBracket[];
+  revision?: number;
+  updatedAtMs?: number;
   whatsappLogs: WhatsAppLog[];
   whatsappConfig: WhatsAppConfigPublic;
 }
@@ -160,4 +207,5 @@ export interface AdminAuthStatus {
   email?: string | null;
   authReady?: boolean;
 }
+
 
