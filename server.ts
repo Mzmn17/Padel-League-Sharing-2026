@@ -1,19 +1,24 @@
 import 'dotenv/config';
 import crypto from 'node:crypto';
+import http from 'node:http';
 import path from 'node:path';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import type {
   Match,
   MatchStatus,
+  Participant,
   Team,
   TeamStatus,
   WhatsAppEventType,
   WhatsAppProvider,
 } from './src/types/tournament.ts';
 import {
+  buildDefaultPairName,
   createInitialScore,
   detectScheduleConflict,
+  findTeamForParticipant,
+  formatPairRegion,
   generateKnockoutPairings,
   generateRoundRobinPairings,
   isValidWhatsAppNumber,
@@ -29,6 +34,19 @@ import {
   dispatchMatchWhatsAppNotifications,
   dispatchSingleWhatsAppMessage,
 } from './server/whatsapp.ts';
+import {
+  clearFailedAuthAttempts,
+  createAdminToken,
+  extractBearerToken,
+  getAuthConfigState,
+  hashPassword,
+  isRateLimited,
+  recordFailedAuthAttempt,
+  requireAdmin,
+  revokeAdminToken,
+  verifyAdminCredentials,
+  verifyAdminToken,
+} from './server/auth.ts';
 
 const PORT = Number(process.env.PORT) || 3000;
 const app = express();
@@ -81,10 +99,336 @@ app.get('/api/state', (_req, res) => {
   res.json(getPublicState(store));
 });
 
-// Register a new participant pair
+// Admin Auth Status
+app.get('/api/auth/status', (req, res) => {
+  const store = loadStore();
+  const cfg = getAuthConfigState(store._secrets);
+  const token = extractBearerToken(req);
+  const payload = token ? verifyAdminToken(token) : null;
+  res.json({
+    authenticated: Boolean(payload),
+    username: payload ? payload.sub : null,
+    needsSetup: cfg.needsSetup,
+    envConfigured: cfg.envConfigured,
+  });
+});
+
+// One-time first-run Admin password claim when ADMIN_PASSWORD env is unset
+app.post('/api/auth/setup', (req, res) => {
+  const ipKey = req.ip || 'unknown';
+  if (isRateLimited(ipKey)) {
+    res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi dalam beberapa menit.' });
+    return;
+  }
+
+  const store = loadStore();
+  const cfg = getAuthConfigState(store._secrets);
+  if (!cfg.needsSetup) {
+    res.status(409).json({ error: 'Akun admin sudah dikonfigurasi. Silakan login.' });
+    return;
+  }
+
+  const { username, password } = req.body ?? {};
+  const cleanUsername =
+    typeof username === 'string' && username.trim().length > 0 ? username.trim() : 'admin';
+
+  if (cleanUsername.length < 3 || cleanUsername.length > 32) {
+    res.status(400).json({ error: 'Username admin harus 3–32 karakter.' });
+    return;
+  }
+  if (typeof password !== 'string' || password.length < 6 || password.length > 128) {
+    res.status(400).json({ error: 'Kata sandi admin minimal 6 karakter.' });
+    return;
+  }
+
+  store._secrets = {
+    token: store._secrets?.token || process.env.WHATSAPP_API_TOKEN || '',
+    adminUsername: cleanUsername,
+    adminPasswordHash: hashPassword(password),
+  };
+  saveStore(store);
+
+  clearFailedAuthAttempts(ipKey);
+  const token = createAdminToken(cleanUsername);
+  res.status(201).json({
+    authenticated: true,
+    username: cleanUsername,
+    token,
+    needsSetup: false,
+    envConfigured: false,
+  });
+});
+
+// Admin Login
+app.post('/api/auth/login', (req, res) => {
+  const ipKey = req.ip || 'unknown';
+  if (isRateLimited(ipKey)) {
+    res.status(429).json({ error: 'Terlalu banyak percobaan login gagal. Coba lagi beberapa menit.' });
+    return;
+  }
+
+  const store = loadStore();
+  const { username = 'admin', password = '' } = req.body ?? {};
+  if (typeof username !== 'string' || typeof password !== 'string' || !password) {
+    res.status(400).json({ error: 'Masukkan username dan kata sandi admin.' });
+    return;
+  }
+
+  const result = verifyAdminCredentials(username, password, store._secrets);
+  if (!result.ok) {
+    if (result.reason === 'needs_setup') {
+      res.status(400).json({ error: 'Akun admin belum dibuat. Silakan buat kata sandi admin pertama.' });
+      return;
+    }
+    recordFailedAuthAttempt(ipKey);
+    res.status(401).json({ error: 'Username atau kata sandi admin salah.' });
+    return;
+  }
+
+  clearFailedAuthAttempts(ipKey);
+  const cfg = getAuthConfigState(store._secrets);
+  const token = createAdminToken(result.username);
+  res.json({
+    authenticated: true,
+    username: result.username,
+    token,
+    needsSetup: false,
+    envConfigured: cfg.envConfigured,
+  });
+});
+
+// Admin Logout
+app.post('/api/auth/logout', (req, res) => {
+  const token = extractBearerToken(req);
+  if (token) {
+    revokeAdminToken(token);
+  }
+  res.json({ authenticated: false });
+});
+
+// Register a single individual participant (no WhatsApp required, includes Region & Perwakilan)
+app.post('/api/participants', (req, res) => {
+  const store = loadStore();
+  const { name, region, representation, categoryId, level } = req.body ?? {};
+
+  if (!categoryId || !store.categories.some((c) => c.id === categoryId)) {
+    res.status(400).json({ error: 'Kategori turnamen tidak valid.' });
+    return;
+  }
+  if (typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ error: 'Nama peserta wajib diisi.' });
+    return;
+  }
+  if (typeof region !== 'string' || !region.trim()) {
+    res.status(400).json({ error: 'Region peserta wajib diisi.' });
+    return;
+  }
+
+  const newParticipant: Participant = {
+    id: `part-${crypto.randomUUID().slice(0, 8)}`,
+    name: name.trim(),
+    region: region.trim(),
+    representation:
+      typeof representation === 'string' && representation.trim()
+        ? representation.trim()
+        : 'Retail Sales',
+    categoryId,
+    level: typeof level === 'string' && level.trim() ? level.trim() : 'Open',
+    status: 'registered',
+    createdAt: new Date().toISOString(),
+  };
+
+  store.participants.push(newParticipant);
+  saveStore(store);
+  broadcastState();
+  res.status(201).json({ participant: newParticipant, state: getPublicState(store) });
+});
+
+// Update individual participant (Admin only) & sync onto any formed pair
+app.put('/api/participants/:id', requireAdmin, (req, res) => {
+  const store = loadStore();
+  const participant = store.participants.find((p) => p.id === req.params.id);
+  if (!participant) {
+    res.status(404).json({ error: 'Peserta tidak ditemukan.' });
+    return;
+  }
+
+  const { name, region, representation, categoryId, level, status } = req.body ?? {};
+  if (typeof name === 'string' && name.trim()) participant.name = name.trim();
+  if (typeof region === 'string' && region.trim()) participant.region = region.trim();
+  if (typeof representation === 'string' && representation.trim()) {
+    participant.representation = representation.trim();
+  }
+  if (categoryId && store.categories.some((c) => c.id === categoryId)) {
+    participant.categoryId = categoryId;
+  }
+  if (typeof level === 'string' && level.trim()) participant.level = level.trim();
+  if (status && ['registered', 'checked_in', 'withdrawn'].includes(status)) {
+    participant.status = status as TeamStatus;
+  }
+
+  for (const team of store.teams) {
+    let changed = false;
+    if (team.player1Id === participant.id) {
+      team.player1.name = participant.name;
+      team.player1.region = participant.region;
+      team.player1.representation = participant.representation;
+      team.player1.level = participant.level;
+      changed = true;
+    }
+    if (team.player2Id === participant.id) {
+      team.player2.name = participant.name;
+      team.player2.region = participant.region;
+      team.player2.representation = participant.representation;
+      team.player2.level = participant.level;
+      changed = true;
+    }
+    if (changed) {
+      const combinedRegion = formatPairRegion(
+        team.player1.region || '',
+        team.player2.region || ''
+      );
+      team.region = combinedRegion;
+      team.club = combinedRegion;
+    }
+  }
+
+  saveStore(store);
+  broadcastState();
+  res.json({ participant, state: getPublicState(store) });
+});
+
+// Delete an individual participant (Admin only; cascades team/matches if ?cascade=true)
+app.delete('/api/participants/:id', requireAdmin, (req, res) => {
+  const store = loadStore();
+  const participant = store.participants.find((p) => p.id === req.params.id);
+  if (!participant) {
+    res.status(404).json({ error: 'Peserta tidak ditemukan.' });
+    return;
+  }
+
+  const linkedTeam = findTeamForParticipant(participant.id, store.teams);
+  const linkedMatches = linkedTeam
+    ? store.matches.filter((m) => m.teamAId === linkedTeam.id || m.teamBId === linkedTeam.id)
+    : [];
+  const cascade = req.query.cascade === 'true';
+
+  if (linkedTeam && !cascade) {
+    res.status(409).json({
+      error: `Peserta ini sudah tergabung dalam pasangan "${linkedTeam.teamName}"${
+        linkedMatches.length > 0 ? ` (${linkedMatches.length} jadwal pertandingan)` : ''
+      }. Konfirmasi untuk menghapus peserta beserta pasangan dan jadwal terkait.`,
+      linkedMatchCount: linkedMatches.length,
+    });
+    return;
+  }
+
+  if (linkedTeam) {
+    store.matches = store.matches.filter(
+      (m) => m.teamAId !== linkedTeam.id && m.teamBId !== linkedTeam.id
+    );
+    store.teams = store.teams.filter((t) => t.id !== linkedTeam.id);
+  }
+
+  store.participants = store.participants.filter((p) => p.id !== participant.id);
+  saveStore(store);
+  broadcastState();
+  res.json({ state: getPublicState(store) });
+});
+
+// Manually pair two individual participants into a Team/Group (Admin only)
+app.post('/api/teams/pair', requireAdmin, (req, res) => {
+  const store = loadStore();
+  const { participant1Id, participant2Id, categoryId, teamName, region, seed } = req.body ?? {};
+
+  if (!participant1Id || !participant2Id || participant1Id === participant2Id) {
+    res.status(400).json({ error: 'Pilih dua peserta yang berbeda untuk dipasangkan.' });
+    return;
+  }
+
+  const p1 = store.participants.find((p) => p.id === participant1Id);
+  const p2 = store.participants.find((p) => p.id === participant2Id);
+  if (!p1 || !p2) {
+    res.status(404).json({ error: 'Data peserta tidak ditemukan.' });
+    return;
+  }
+
+  const existingTeam1 = findTeamForParticipant(p1.id, store.teams);
+  const existingTeam2 = findTeamForParticipant(p2.id, store.teams);
+  if (existingTeam1 || existingTeam2) {
+    res.status(409).json({
+      error: `${
+        existingTeam1 ? p1.name : p2.name
+      } sudah memiliki pasangan. Lepas pasangan lama terlebih dahulu jika ingin memindahkan.`,
+    });
+    return;
+  }
+
+  const resolvedCategoryId =
+    categoryId && store.categories.some((c) => c.id === categoryId)
+      ? categoryId
+      : p1.categoryId;
+  const category = store.categories.find((c) => c.id === resolvedCategoryId);
+  if (!category) {
+    res.status(400).json({ error: 'Kategori turnamen tidak valid.' });
+    return;
+  }
+
+  const activeInCat = store.teams.filter(
+    (t) => t.categoryId === resolvedCategoryId && t.status !== 'withdrawn'
+  );
+  if (activeInCat.length >= category.maxTeams) {
+    res.status(400).json({ error: `Kuota pasangan kategori ${category.name} sudah penuh.` });
+    return;
+  }
+
+  const resolvedRegion =
+    typeof region === 'string' && region.trim()
+      ? region.trim()
+      : formatPairRegion(p1.region, p2.region);
+  const resolvedName =
+    typeof teamName === 'string' && teamName.trim()
+      ? teamName.trim()
+      : buildDefaultPairName(p1.name, p2.name);
+
+  const pairStatus: TeamStatus =
+    p1.status === 'checked_in' && p2.status === 'checked_in' ? 'checked_in' : 'registered';
+
+  const newTeam: Team = {
+    id: `team-${crypto.randomUUID().slice(0, 8)}`,
+    categoryId: resolvedCategoryId,
+    teamName: resolvedName,
+    region: resolvedRegion,
+    club: resolvedRegion,
+    seed: typeof seed === 'number' && seed > 0 ? seed : null,
+    status: pairStatus,
+    player1Id: p1.id,
+    player2Id: p2.id,
+    player1: {
+      name: p1.name,
+      region: p1.region,
+      representation: p1.representation || 'Retail Sales',
+      level: p1.level,
+    },
+    player2: {
+      name: p2.name,
+      region: p2.region,
+      representation: p2.representation || 'Retail Sales',
+      level: p2.level,
+    },
+    createdAt: new Date().toISOString(),
+  };
+
+  store.teams.push(newTeam);
+  saveStore(store);
+  broadcastState();
+  res.status(201).json({ team: newTeam, state: getPublicState(store) });
+});
+
+// Register a formed pair directly (WhatsApp optional)
 app.post('/api/teams', (req, res) => {
   const store = loadStore();
-  const { categoryId, teamName, club, seed, player1, player2 } = req.body ?? {};
+  const { categoryId, teamName, region, club, seed, player1, player2 } = req.body ?? {};
 
   if (!categoryId || !store.categories.some((c) => c.id === categoryId)) {
     res.status(400).json({ error: 'Kategori turnamen tidak valid.' });
@@ -92,10 +436,6 @@ app.post('/api/teams', (req, res) => {
   }
   if (!player1?.name?.trim() || !player2?.name?.trim()) {
     res.status(400).json({ error: 'Nama Pemain 1 dan Pemain 2 wajib diisi.' });
-    return;
-  }
-  if (!isValidWhatsAppNumber(player1.whatsapp || '') || !isValidWhatsAppNumber(player2.whatsapp || '')) {
-    res.status(400).json({ error: 'Nomor WhatsApp kedua pemain wajib valid (10–15 digit).' });
     return;
   }
 
@@ -108,29 +448,99 @@ app.post('/api/teams', (req, res) => {
     return;
   }
 
+  const p1Region =
+    typeof player1.region === 'string' && player1.region.trim()
+      ? player1.region.trim()
+      : typeof region === 'string' && region.trim()
+        ? region.trim()
+        : typeof club === 'string' && club.trim()
+          ? club.trim()
+          : 'Makassar';
+  const p2Region =
+    typeof player2.region === 'string' && player2.region.trim()
+      ? player2.region.trim()
+      : p1Region;
+
+  const resolvedRegion =
+    typeof region === 'string' && region.trim()
+      ? region.trim()
+      : typeof club === 'string' && club.trim()
+        ? club.trim()
+        : formatPairRegion(p1Region, p2Region);
+
   const computedName =
     typeof teamName === 'string' && teamName.trim().length > 0
       ? teamName.trim()
-      : `${player1.name.trim().split(' ')[0]} / ${player2.name.trim().split(' ')[0]}`;
+      : buildDefaultPairName(player1.name, player2.name);
+
+  const now = new Date().toISOString();
+  const p1Id = `part-${crypto.randomUUID().slice(0, 8)}`;
+  const p2Id = `part-${crypto.randomUUID().slice(0, 8)}`;
+  const p1Level =
+    typeof player1.level === 'string' && player1.level.trim() ? player1.level.trim() : 'Open';
+  const p2Level =
+    typeof player2.level === 'string' && player2.level.trim() ? player2.level.trim() : 'Open';
+  const p1Rep =
+    typeof player1.representation === 'string' && player1.representation.trim()
+      ? player1.representation.trim()
+      : 'Retail Sales';
+  const p2Rep =
+    typeof player2.representation === 'string' && player2.representation.trim()
+      ? player2.representation.trim()
+      : 'Retail Sales';
+
+  store.participants.push(
+    {
+      id: p1Id,
+      name: player1.name.trim(),
+      region: p1Region,
+      representation: p1Rep,
+      categoryId,
+      level: p1Level,
+      status: 'registered',
+      createdAt: now,
+    },
+    {
+      id: p2Id,
+      name: player2.name.trim(),
+      region: p2Region,
+      representation: p2Rep,
+      categoryId,
+      level: p2Level,
+      status: 'registered',
+      createdAt: now,
+    }
+  );
 
   const newTeam: Team = {
     id: `team-${crypto.randomUUID().slice(0, 8)}`,
     categoryId,
     teamName: computedName,
-    club: typeof club === 'string' && club.trim() ? club.trim() : 'Independent',
+    region: resolvedRegion,
+    club: resolvedRegion,
     seed: typeof seed === 'number' && seed > 0 ? seed : null,
     status: 'registered',
+    player1Id: p1Id,
+    player2Id: p2Id,
     player1: {
       name: player1.name.trim(),
-      whatsapp: normalizeWhatsAppNumber(player1.whatsapp),
-      level: typeof player1.level === 'string' && player1.level.trim() ? player1.level.trim() : 'Open',
+      region: p1Region,
+      representation: p1Rep,
+      level: p1Level,
+      ...(player1.whatsapp && isValidWhatsAppNumber(player1.whatsapp)
+        ? { whatsapp: normalizeWhatsAppNumber(player1.whatsapp) }
+        : {}),
     },
     player2: {
       name: player2.name.trim(),
-      whatsapp: normalizeWhatsAppNumber(player2.whatsapp),
-      level: typeof player2.level === 'string' && player2.level.trim() ? player2.level.trim() : 'Open',
+      region: p2Region,
+      representation: p2Rep,
+      level: p2Level,
+      ...(player2.whatsapp && isValidWhatsAppNumber(player2.whatsapp)
+        ? { whatsapp: normalizeWhatsAppNumber(player2.whatsapp) }
+        : {}),
     },
-    createdAt: new Date().toISOString(),
+    createdAt: now,
   };
 
   store.teams.push(newTeam);
@@ -139,8 +549,8 @@ app.post('/api/teams', (req, res) => {
   res.status(201).json({ team: newTeam, state: getPublicState(store) });
 });
 
-// Update team details or check-in status
-app.put('/api/teams/:id', (req, res) => {
+// Update team details or check-in status (Admin only)
+app.put('/api/teams/:id', requireAdmin, (req, res) => {
   const store = loadStore();
   const team = store.teams.find((t) => t.id === req.params.id);
   if (!team) {
@@ -148,33 +558,69 @@ app.put('/api/teams/:id', (req, res) => {
     return;
   }
 
-  const { status, teamName, club, seed, player1, player2, categoryId } = req.body ?? {};
+  const { status, teamName, region, club, seed, player1, player2, categoryId } = req.body ?? {};
   if (status && ['registered', 'checked_in', 'withdrawn'].includes(status)) {
     team.status = status as TeamStatus;
   }
-  if (typeof teamName === 'string' && teamName.trim()) team.teamName = teamName.trim();
-  if (typeof club === 'string' && club.trim()) team.club = club.trim();
+  if (typeof region === 'string' && region.trim()) {
+    team.region = region.trim();
+    team.club = region.trim();
+  } else if (typeof club === 'string' && club.trim()) {
+    team.club = club.trim();
+    team.region = club.trim();
+  }
   if (seed === null || (typeof seed === 'number' && seed > 0)) team.seed = seed;
   if (categoryId && store.categories.some((c) => c.id === categoryId)) {
     team.categoryId = categoryId;
   }
   if (player1?.name?.trim()) {
     team.player1.name = player1.name.trim();
-    if (player1.whatsapp && isValidWhatsAppNumber(player1.whatsapp)) {
-      team.player1.whatsapp = normalizeWhatsAppNumber(player1.whatsapp);
+    if (typeof player1.region === 'string' && player1.region.trim()) {
+      team.player1.region = player1.region.trim();
+    }
+    if (typeof player1.representation === 'string' && player1.representation.trim()) {
+      team.player1.representation = player1.representation.trim();
     }
     if (typeof player1.level === 'string' && player1.level.trim()) {
       team.player1.level = player1.level.trim();
     }
+    if (team.player1Id) {
+      const part1 = store.participants.find((p) => p.id === team.player1Id);
+      if (part1) {
+        part1.name = team.player1.name;
+        if (team.player1.region) part1.region = team.player1.region;
+        if (team.player1.representation) part1.representation = team.player1.representation;
+        part1.level = team.player1.level;
+        part1.categoryId = team.categoryId;
+      }
+    }
   }
   if (player2?.name?.trim()) {
     team.player2.name = player2.name.trim();
-    if (player2.whatsapp && isValidWhatsAppNumber(player2.whatsapp)) {
-      team.player2.whatsapp = normalizeWhatsAppNumber(player2.whatsapp);
+    if (typeof player2.region === 'string' && player2.region.trim()) {
+      team.player2.region = player2.region.trim();
+    }
+    if (typeof player2.representation === 'string' && player2.representation.trim()) {
+      team.player2.representation = player2.representation.trim();
     }
     if (typeof player2.level === 'string' && player2.level.trim()) {
       team.player2.level = player2.level.trim();
     }
+    if (team.player2Id) {
+      const part2 = store.participants.find((p) => p.id === team.player2Id);
+      if (part2) {
+        part2.name = team.player2.name;
+        if (team.player2.region) part2.region = team.player2.region;
+        if (team.player2.representation) part2.representation = team.player2.representation;
+        part2.level = team.player2.level;
+        part2.categoryId = team.categoryId;
+      }
+    }
+  }
+  if (typeof teamName === 'string') {
+    team.teamName = teamName.trim()
+      ? teamName.trim()
+      : buildDefaultPairName(team.player1.name, team.player2.name);
   }
 
   saveStore(store);
@@ -182,26 +628,42 @@ app.put('/api/teams/:id', (req, res) => {
   res.json({ team, state: getPublicState(store) });
 });
 
-// Delete a team if not yet in matches
-app.delete('/api/teams/:id', (req, res) => {
+// Delete / unpair a team (Admin only; supports ?cascade=true to remove linked matches)
+app.delete('/api/teams/:id', requireAdmin, (req, res) => {
   const store = loadStore();
-  const inMatch = store.matches.some(
+  const teamExists = store.teams.some((t) => t.id === req.params.id);
+  if (!teamExists) {
+    res.status(404).json({ error: 'Pasangan tidak ditemukan.' });
+    return;
+  }
+
+  const linkedMatches = store.matches.filter(
     (m) => m.teamAId === req.params.id || m.teamBId === req.params.id
   );
-  if (inMatch) {
-    res.status(400).json({
-      error: 'Pasangan sudah memiliki jadwal pertandingan. Hapus pertandingan terkait terlebih dahulu.',
+  const cascade = req.query.cascade === 'true';
+
+  if (linkedMatches.length > 0 && !cascade) {
+    res.status(409).json({
+      error: `Pasangan ini terhubung ke ${linkedMatches.length} jadwal pertandingan. Konfirmasi untuk melepas pasangan beserta jadwal terkait.`,
+      linkedMatchCount: linkedMatches.length,
     });
     return;
   }
+
+  if (cascade && linkedMatches.length > 0) {
+    store.matches = store.matches.filter(
+      (m) => m.teamAId !== req.params.id && m.teamBId !== req.params.id
+    );
+  }
+
   store.teams = store.teams.filter((t) => t.id !== req.params.id);
   saveStore(store);
   broadcastState();
   res.json({ state: getPublicState(store) });
 });
 
-// Create manual match pairing & schedule
-app.post('/api/matches', async (req, res) => {
+// Create manual match pairing & schedule (Admin only)
+app.post('/api/matches', requireAdmin, async (req, res) => {
   const store = loadStore();
   const {
     categoryId,
@@ -288,8 +750,8 @@ app.post('/api/matches', async (req, res) => {
   res.status(201).json({ match: newMatch, state: getPublicState(store) });
 });
 
-// Auto-generate pairings for a category (round_robin or knockout)
-app.post('/api/matches/auto-pair', async (req, res) => {
+// Auto-generate pairings for a category (Admin only)
+app.post('/api/matches/auto-pair', requireAdmin, async (req, res) => {
   const store = loadStore();
   const { categoryId, mode = 'round_robin', stage, scheduledDate, startTime = '09:00' } =
     req.body ?? {};
@@ -371,8 +833,8 @@ app.post('/api/matches/auto-pair', async (req, res) => {
   res.status(201).json({ createdCount: createdMatches.length, state: getPublicState(store) });
 });
 
-// Update match court / schedule / status -> Triggers automatic WhatsApp notifications
-app.put('/api/matches/:id/schedule', async (req, res) => {
+// Update match court / schedule / status -> Triggers automatic WhatsApp notifications (Admin only)
+app.put('/api/matches/:id/schedule', requireAdmin, async (req, res) => {
   const store = loadStore();
   const match = store.matches.find((m) => m.id === req.params.id);
   if (!match) {
@@ -453,8 +915,8 @@ app.put('/api/matches/:id/schedule', async (req, res) => {
   res.json({ match, generatedLogs, state: getPublicState(store) });
 });
 
-// Operator score updates -> Broadcasts instantaneously via SSE
-app.put('/api/matches/:id/score', (req, res) => {
+// Operator score updates -> Broadcasts instantaneously via SSE (Admin only)
+app.put('/api/matches/:id/score', requireAdmin, (req, res) => {
   const store = loadStore();
   const match = store.matches.find((m) => m.id === req.params.id);
   if (!match) {
@@ -478,8 +940,8 @@ app.put('/api/matches/:id/score', (req, res) => {
   res.json({ match, state: getPublicState(store) });
 });
 
-// Delete match
-app.delete('/api/matches/:id', (req, res) => {
+// Delete match (Admin only)
+app.delete('/api/matches/:id', requireAdmin, (req, res) => {
   const store = loadStore();
   store.matches = store.matches.filter((m) => m.id !== req.params.id);
   saveStore(store);
@@ -487,8 +949,8 @@ app.delete('/api/matches/:id', (req, res) => {
   res.json({ state: getPublicState(store) });
 });
 
-// Add court
-app.post('/api/courts', (req, res) => {
+// Add court (Admin only)
+app.post('/api/courts', requireAdmin, (req, res) => {
   const store = loadStore();
   const { name, surface, isIndoor } = req.body ?? {};
   if (!name?.trim()) {
@@ -507,8 +969,8 @@ app.post('/api/courts', (req, res) => {
   res.status(201).json({ court: newCourt, state: getPublicState(store) });
 });
 
-// Configure WhatsApp Gateway
-app.post('/api/whatsapp/config', (req, res) => {
+// Configure WhatsApp Gateway (Admin only)
+app.post('/api/whatsapp/config', requireAdmin, (req, res) => {
   const store = loadStore();
   const { provider, autoNotifyOnScheduleChange, webhookUrl, token, phoneNumberId } =
     req.body ?? {};
@@ -526,7 +988,10 @@ app.post('/api/whatsapp/config', (req, res) => {
     store.whatsappConfig.phoneNumberId = phoneNumberId.trim();
   }
   if (typeof token === 'string' && token.trim().length > 0) {
-    store._secrets = { token: token.trim() };
+    store._secrets = {
+      ...store._secrets,
+      token: token.trim(),
+    };
     store.whatsappConfig.hasToken = true;
   }
 
@@ -535,8 +1000,8 @@ app.post('/api/whatsapp/config', (req, res) => {
   res.json({ state: getPublicState(store) });
 });
 
-// Send manual or test WhatsApp notification
-app.post('/api/whatsapp/test', async (req, res) => {
+// Send manual or test WhatsApp notification (Admin only)
+app.post('/api/whatsapp/test', requireAdmin, async (req, res) => {
   const store = loadStore();
   const { recipientName, recipientNumber, message, matchId } = req.body ?? {};
 
@@ -563,17 +1028,23 @@ app.post('/api/whatsapp/test', async (req, res) => {
   res.status(201).json({ log, state: getPublicState(store) });
 });
 
-// Reset demo seed data
-app.post('/api/reset-demo', (_req, res) => {
+// Reset demo seed data (Admin only)
+app.post('/api/reset-demo', requireAdmin, (_req, res) => {
   const fresh = resetSeedStore();
   broadcastState();
   res.json({ state: getPublicState(fresh) });
 });
 
 async function startServer() {
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        ws: { server: httpServer },
+        allowedHosts: true,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -585,8 +1056,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`PadelLiga server running on http://0.0.0.0:${PORT}`);
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`PadelLeague server running on http://0.0.0.0:${PORT}`);
   });
 }
 

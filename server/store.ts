@@ -1,30 +1,34 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { hashPassword } from './auth.ts';
 import type {
+  Participant,
   TournamentState,
   WhatsAppProvider,
 } from '../src/types/tournament.ts';
 
-export interface ServerWhatsAppSecrets {
+export interface ServerSecrets {
   token: string;
+  adminUsername?: string;
+  adminPasswordHash?: string;
 }
 
 interface PersistedData extends TournamentState {
-  _secrets?: ServerWhatsAppSecrets;
+  _secrets?: ServerSecrets;
 }
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'tournament.json');
 
 function createSeedState(): PersistedData {
-  const today = '2026-11-24';
+  const today = '2026-11-27';
   const envProvider = (process.env.WHATSAPP_PROVIDER as WhatsAppProvider) || 'simulated';
 
   return {
     tournament: {
       id: 'pls-2026',
-      name: 'Padel League & Share',
-      caption: 'Padel Turnamen & Awarding Retail Sales Sulawesi Edition',
+      name: 'Padel League & Share 2026',
+      caption: 'Sulawesi Edition',
       slug: 'padel-league-and-share',
       venue: 'Beach Padel Makassar',
       city: 'Makassar',
@@ -37,6 +41,7 @@ function createSeedState(): PersistedData {
       { id: 'cat-mens-open', name: "Men's Open", level: 'Level A / Pro', maxTeams: 16, entryFee: 850000 },
       { id: 'cat-womens-open', name: "Women's Open", level: 'Level A / B', maxTeams: 16, entryFee: 750000 },
       { id: 'cat-mixed', name: 'Mixed Doubles', level: 'Open Mix', maxTeams: 16, entryFee: 800000 },
+      { id: 'cat-double-man', name: 'Double Man', level: 'Open Men', maxTeams: 16, entryFee: 800000 },
       { id: 'cat-bronze', name: 'Bronze / Pemula', level: 'Beginner - Low Int', maxTeams: 16, entryFee: 650000 },
     ],
     courts: [
@@ -45,137 +50,203 @@ function createSeedState(): PersistedData {
       { id: 'court-3', name: 'Court 3 · South Arena', surface: 'WPT Pro Turf', isIndoor: false },
       { id: 'court-4', name: 'Court 4 · Club Court', surface: 'WPT Pro Turf', isIndoor: false },
     ],
+    participants: [
+      { id: 'part-1', name: 'Raka Pratama', region: 'Makassar', representation: 'Retail Sales', categoryId: 'cat-mens-open', level: 'Pro', status: 'checked_in', createdAt: '2026-11-20T09:00:00.000Z' },
+      { id: 'part-2', name: 'Dimas Wijaya', region: 'Makassar', representation: 'Retail Sales', categoryId: 'cat-mens-open', level: 'Pro', status: 'checked_in', createdAt: '2026-11-20T09:05:00.000Z' },
+      { id: 'part-3', name: 'Kevin Gunawan', region: 'Gowa', representation: 'Cabang / Branch', categoryId: 'cat-mens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-20T10:15:00.000Z' },
+      { id: 'part-4', name: 'Bagas Aditya', region: 'Makassar', representation: 'Retail Sales', categoryId: 'cat-mens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-20T10:20:00.000Z' },
+      { id: 'part-5', name: 'Reza Mahendra', region: 'Manado', representation: 'Cabang / Branch', categoryId: 'cat-mens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-20T11:30:00.000Z' },
+      { id: 'part-6', name: 'Andre Tanoto', region: 'Manado', representation: 'Distributor / Partner', categoryId: 'cat-mens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-20T11:35:00.000Z' },
+      { id: 'part-7', name: 'Bima Santoso', region: 'Kendari', representation: 'Retail Sales', categoryId: 'cat-mens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-20T14:00:00.000Z' },
+      { id: 'part-8', name: 'Farhan Hakim', region: 'Kendari', representation: 'Cabang / Branch', categoryId: 'cat-mens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-20T14:05:00.000Z' },
+      { id: 'part-9', name: 'Nadia Kusuma', region: 'Makassar', representation: 'Head Office', categoryId: 'cat-womens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-21T08:30:00.000Z' },
+      { id: 'part-10', name: 'Clarissa Halim', region: 'Makassar', representation: 'Retail Sales', categoryId: 'cat-womens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-21T08:35:00.000Z' },
+      { id: 'part-11', name: 'Salsa Putri', region: 'Parepare', representation: 'Cabang / Branch', categoryId: 'cat-womens-open', level: 'Level A', status: 'checked_in', createdAt: '2026-11-21T09:45:00.000Z' },
+      { id: 'part-12', name: 'Maya Lestari', region: 'Makassar', representation: 'Retail Sales', categoryId: 'cat-womens-open', level: 'Level B', status: 'checked_in', createdAt: '2026-11-21T09:50:00.000Z' },
+      { id: 'part-13', name: 'Tania Wijaya', region: 'Palu', representation: 'Cabang / Branch', categoryId: 'cat-womens-open', level: 'Level B', status: 'registered', createdAt: '2026-11-21T13:20:00.000Z' },
+      { id: 'part-14', name: 'Bella Kartika', region: 'Palu', representation: 'Distributor / Partner', categoryId: 'cat-womens-open', level: 'Level B', status: 'registered', createdAt: '2026-11-21T13:25:00.000Z' },
+      { id: 'part-15', name: 'Ayu Permata', region: 'Maros', representation: 'Retail Sales', categoryId: 'cat-womens-open', level: 'Level B', status: 'checked_in', createdAt: '2026-11-21T15:00:00.000Z' },
+      { id: 'part-16', name: 'Dinda Larasati', region: 'Makassar', representation: 'Head Office', categoryId: 'cat-womens-open', level: 'Level B', status: 'checked_in', createdAt: '2026-11-21T15:05:00.000Z' },
+      { id: 'part-17', name: 'Dion Kurniawan', region: 'Makassar', representation: 'Sponsor / VIP', categoryId: 'cat-mixed', level: 'Open', status: 'checked_in', createdAt: '2026-11-22T10:00:00.000Z' },
+      { id: 'part-18', name: 'Vanessa Lim', region: 'Manado', representation: 'Retail Sales', categoryId: 'cat-mixed', level: 'Open', status: 'checked_in', createdAt: '2026-11-22T10:05:00.000Z' },
+      { id: 'part-19', name: 'Gilang Ramadhan', region: 'Kendari', representation: 'Cabang / Branch', categoryId: 'cat-mixed', level: 'Open', status: 'checked_in', createdAt: '2026-11-22T11:10:00.000Z' },
+      { id: 'part-20', name: 'Kezia Natalia', region: 'Makassar', representation: 'Komunitas Padel', categoryId: 'cat-mixed', level: 'Open', status: 'checked_in', createdAt: '2026-11-22T11:15:00.000Z' },
+      { id: 'part-21', name: 'Yoga Pradipta', region: 'Bone', representation: 'Retail Sales', categoryId: 'cat-bronze', level: 'Beginner', status: 'checked_in', createdAt: '2026-11-22T14:30:00.000Z' },
+      { id: 'part-22', name: 'Fajar Nugroho', region: 'Makassar', representation: 'Komunitas Padel', categoryId: 'cat-bronze', level: 'Beginner', status: 'checked_in', createdAt: '2026-11-22T14:35:00.000Z' },
+      { id: 'part-23', name: 'Ilham Saputra', region: 'Gowa', representation: 'Cabang / Branch', categoryId: 'cat-bronze', level: 'Beginner', status: 'registered', createdAt: '2026-11-22T16:00:00.000Z' },
+      { id: 'part-24', name: 'Rama Hidayat', region: 'Parepare', representation: 'Retail Sales', categoryId: 'cat-bronze', level: 'Beginner', status: 'registered', createdAt: '2026-11-22T16:05:00.000Z' },
+      { id: 'part-25', name: 'Andi Tenri', region: 'Makassar', representation: 'Retail Sales', categoryId: 'cat-mens-open', level: 'Level A', status: 'registered', createdAt: '2026-11-23T09:00:00.000Z' },
+      { id: 'part-26', name: 'Fikri Ramadhan', region: 'Gowa', representation: 'Distributor / Partner', categoryId: 'cat-mens-open', level: 'Level A', status: 'registered', createdAt: '2026-11-23T09:15:00.000Z' },
+      { id: 'part-27', name: 'Putri Anggraini', region: 'Manado', representation: 'Cabang / Branch', categoryId: 'cat-womens-open', level: 'Level B', status: 'registered', createdAt: '2026-11-23T10:00:00.000Z' },
+      { id: 'part-28', name: 'Rizky Hidayat', region: 'Kendari', representation: 'Komunitas Padel', categoryId: 'cat-bronze', level: 'Beginner', status: 'registered', createdAt: '2026-11-23T10:30:00.000Z' },
+    ],
     teams: [
       {
         id: 'team-1',
         categoryId: 'cat-mens-open',
         teamName: 'Raka / Dimas',
-        club: 'Senayan Padel',
+        region: 'Makassar',
+        club: 'Makassar',
         seed: 1,
         status: 'checked_in',
-        player1: { name: 'Raka Pratama', whatsapp: '6281290112233', level: 'Pro' },
-        player2: { name: 'Dimas Wijaya', whatsapp: '6281290112244', level: 'Pro' },
+        player1Id: 'part-1',
+        player2Id: 'part-2',
+        player1: { name: 'Raka Pratama', region: 'Makassar', representation: 'Retail Sales', level: 'Pro' },
+        player2: { name: 'Dimas Wijaya', region: 'Makassar', representation: 'Retail Sales', level: 'Pro' },
         createdAt: '2026-11-20T09:00:00.000Z',
       },
       {
         id: 'team-2',
         categoryId: 'cat-mens-open',
-        teamName: 'Kevin /Bagas',
-        club: 'Kemang Smash',
+        teamName: 'Kevin / Bagas',
+        region: 'Gowa / Makassar',
+        club: 'Gowa / Makassar',
         seed: 2,
         status: 'checked_in',
-        player1: { name: 'Kevin Gunawan', whatsapp: '6281388001122', level: 'Level A' },
-        player2: { name: 'Bagas Aditya', whatsapp: '6281388001133', level: 'Level A' },
+        player1Id: 'part-3',
+        player2Id: 'part-4',
+        player1: { name: 'Kevin Gunawan', region: 'Gowa', representation: 'Cabang / Branch', level: 'Level A' },
+        player2: { name: 'Bagas Aditya', region: 'Makassar', representation: 'Retail Sales', level: 'Level A' },
         createdAt: '2026-11-20T10:15:00.000Z',
       },
       {
         id: 'team-3',
         categoryId: 'cat-mens-open',
         teamName: 'Reza / Andre',
-        club: 'PIK Padel Club',
+        region: 'Manado',
+        club: 'Manado',
         seed: 3,
         status: 'checked_in',
-        player1: { name: 'Reza Mahendra', whatsapp: '6281177223344', level: 'Level A' },
-        player2: { name: 'Andre Tanoto', whatsapp: '6281177223355', level: 'Level A' },
+        player1Id: 'part-5',
+        player2Id: 'part-6',
+        player1: { name: 'Reza Mahendra', region: 'Manado', representation: 'Cabang / Branch', level: 'Level A' },
+        player2: { name: 'Andre Tanoto', region: 'Manado', representation: 'Distributor / Partner', level: 'Level A' },
         createdAt: '2026-11-20T11:30:00.000Z',
       },
       {
         id: 'team-4',
         categoryId: 'cat-mens-open',
         teamName: 'Bima / Farhan',
-        club: 'SCBD Court',
+        region: 'Kendari',
+        club: 'Kendari',
         seed: 4,
         status: 'checked_in',
-        player1: { name: 'Bima Santoso', whatsapp: '6281766554433', level: 'Level A' },
-        player2: { name: 'Farhan Hakim', whatsapp: '6281766554422', level: 'Level A' },
+        player1Id: 'part-7',
+        player2Id: 'part-8',
+        player1: { name: 'Bima Santoso', region: 'Kendari', representation: 'Retail Sales', level: 'Level A' },
+        player2: { name: 'Farhan Hakim', region: 'Kendari', representation: 'Cabang / Branch', level: 'Level A' },
         createdAt: '2026-11-20T14:00:00.000Z',
       },
       {
         id: 'team-5',
         categoryId: 'cat-womens-open',
         teamName: 'Nadia / Clarissa',
-        club: 'Senayan Padel',
+        region: 'Makassar',
+        club: 'Makassar',
         seed: 1,
         status: 'checked_in',
-        player1: { name: 'Nadia Kusuma', whatsapp: '6281211998877', level: 'Level A' },
-        player2: { name: 'Clarissa Halim', whatsapp: '6281211998866', level: 'Level A' },
+        player1Id: 'part-9',
+        player2Id: 'part-10',
+        player1: { name: 'Nadia Kusuma', region: 'Makassar', representation: 'Head Office', level: 'Level A' },
+        player2: { name: 'Clarissa Halim', region: 'Makassar', representation: 'Retail Sales', level: 'Level A' },
         createdAt: '2026-11-21T08:30:00.000Z',
       },
       {
         id: 'team-6',
         categoryId: 'cat-womens-open',
         teamName: 'Salsa / Maya',
-        club: 'Menteng Club',
+        region: 'Parepare / Makassar',
+        club: 'Parepare / Makassar',
         seed: 2,
         status: 'checked_in',
-        player1: { name: 'Salsa Putri', whatsapp: '6281544332211', level: 'Level A' },
-        player2: { name: 'Maya Lestari', whatsapp: '6281544332200', level: 'Level B' },
+        player1Id: 'part-11',
+        player2Id: 'part-12',
+        player1: { name: 'Salsa Putri', region: 'Parepare', representation: 'Cabang / Branch', level: 'Level A' },
+        player2: { name: 'Maya Lestari', region: 'Makassar', representation: 'Retail Sales', level: 'Level B' },
         createdAt: '2026-11-21T09:45:00.000Z',
       },
       {
         id: 'team-7',
         categoryId: 'cat-womens-open',
         teamName: 'Tania / Bella',
-        club: 'PIK Padel Club',
+        region: 'Palu',
+        club: 'Palu',
         seed: 3,
         status: 'registered',
-        player1: { name: 'Tania Wijaya', whatsapp: '6281899776655', level: 'Level B' },
-        player2: { name: 'Bella Kartika', whatsapp: '6281899776644', level: 'Level B' },
+        player1Id: 'part-13',
+        player2Id: 'part-14',
+        player1: { name: 'Tania Wijaya', region: 'Palu', representation: 'Cabang / Branch', level: 'Level B' },
+        player2: { name: 'Bella Kartika', region: 'Palu', representation: 'Distributor / Partner', level: 'Level B' },
         createdAt: '2026-11-21T13:20:00.000Z',
       },
       {
         id: 'team-8',
         categoryId: 'cat-womens-open',
         teamName: 'Ayu / Dinda',
-        club: 'Pondok Indah',
+        region: 'Maros / Makassar',
+        club: 'Maros / Makassar',
         seed: 4,
         status: 'checked_in',
-        player1: { name: 'Ayu Permata', whatsapp: '6281912345670', level: 'Level B' },
-        player2: { name: 'Dinda Larasati', whatsapp: '6281912345671', level: 'Level B' },
+        player1Id: 'part-15',
+        player2Id: 'part-16',
+        player1: { name: 'Ayu Permata', region: 'Maros', representation: 'Retail Sales', level: 'Level B' },
+        player2: { name: 'Dinda Larasati', region: 'Makassar', representation: 'Head Office', level: 'Level B' },
         createdAt: '2026-11-21T15:00:00.000Z',
       },
       {
         id: 'team-9',
         categoryId: 'cat-mixed',
         teamName: 'Dion / Vanessa',
-        club: 'Kemang Smash',
+        region: 'Makassar / Manado',
+        club: 'Makassar / Manado',
         seed: 1,
         status: 'checked_in',
-        player1: { name: 'Dion Kurniawan', whatsapp: '6281233445566', level: 'Open' },
-        player2: { name: 'Vanessa Lim', whatsapp: '6281233445577', level: 'Open' },
+        player1Id: 'part-17',
+        player2Id: 'part-18',
+        player1: { name: 'Dion Kurniawan', region: 'Makassar', representation: 'Sponsor / VIP', level: 'Open' },
+        player2: { name: 'Vanessa Lim', region: 'Manado', representation: 'Retail Sales', level: 'Open' },
         createdAt: '2026-11-22T10:00:00.000Z',
       },
       {
         id: 'team-10',
         categoryId: 'cat-mixed',
         teamName: 'Gilang / Kezia',
-        club: 'SCBD Court',
+        region: 'Kendari / Makassar',
+        club: 'Kendari / Makassar',
         seed: 2,
         status: 'checked_in',
-        player1: { name: 'Gilang Ramadhan', whatsapp: '6281677889900', level: 'Open' },
-        player2: { name: 'Kezia Natalia', whatsapp: '6281677889911', level: 'Open' },
+        player1Id: 'part-19',
+        player2Id: 'part-20',
+        player1: { name: 'Gilang Ramadhan', region: 'Kendari', representation: 'Cabang / Branch', level: 'Open' },
+        player2: { name: 'Kezia Natalia', region: 'Makassar', representation: 'Komunitas Padel', level: 'Open' },
         createdAt: '2026-11-22T11:10:00.000Z',
       },
       {
         id: 'team-11',
         categoryId: 'cat-bronze',
         teamName: 'Yoga / Fajar',
-        club: 'Bintaro Padel',
+        region: 'Bone / Makassar',
+        club: 'Bone / Makassar',
         seed: 1,
         status: 'checked_in',
-        player1: { name: 'Yoga Pradipta', whatsapp: '6281255667788', level: 'Beginner' },
-        player2: { name: 'Fajar Nugroho', whatsapp: '6281255667799', level: 'Beginner' },
+        player1Id: 'part-21',
+        player2Id: 'part-22',
+        player1: { name: 'Yoga Pradipta', region: 'Bone', representation: 'Retail Sales', level: 'Beginner' },
+        player2: { name: 'Fajar Nugroho', region: 'Makassar', representation: 'Komunitas Padel', level: 'Beginner' },
         createdAt: '2026-11-22T14:30:00.000Z',
       },
       {
         id: 'team-12',
         categoryId: 'cat-bronze',
         teamName: 'Ilham / Rama',
-        club: 'Depok Arena',
+        region: 'Gowa / Parepare',
+        club: 'Gowa / Parepare',
         seed: 2,
         status: 'registered',
-        player1: { name: 'Ilham Saputra', whatsapp: '6281322114455', level: 'Beginner' },
-        player2: { name: 'Rama Hidayat', whatsapp: '6281322114466', level: 'Beginner' },
+        player1Id: 'part-23',
+        player2Id: 'part-24',
+        player1: { name: 'Ilham Saputra', region: 'Gowa', representation: 'Cabang / Branch', level: 'Beginner' },
+        player2: { name: 'Rama Hidayat', region: 'Parepare', representation: 'Retail Sales', level: 'Beginner' },
         createdAt: '2026-11-22T16:00:00.000Z',
       },
     ],
@@ -408,6 +479,8 @@ function createSeedState(): PersistedData {
     },
     _secrets: {
       token: process.env.WHATSAPP_API_TOKEN || '',
+      adminUsername: 'panitia',
+      adminPasswordHash: hashPassword('padel2026'),
     },
   };
 }
@@ -428,11 +501,115 @@ export function loadStore(): PersistedData {
     try {
       const raw = fs.readFileSync(DATA_FILE, 'utf8');
       const parsed = JSON.parse(raw) as PersistedData;
-      // Fix team-2 typo if seeded previously
+      // Fix team-2 typo if seeded previously & backfill individual participants list
+      let migrated = false;
       for (const t of parsed.teams) {
         if (t.teamName === 'Kevin /Bagas') {
           t.teamName = 'Kevin / Bagas';
+          migrated = true;
         }
+      }
+      if (!Array.isArray(parsed.participants)) {
+        const derivedParticipants: Participant[] = [];
+        for (const t of parsed.teams) {
+          const regionFallback = t.region || t.club || 'Makassar';
+          const p1Id = t.player1Id || `part-${t.id}-1`;
+          const p2Id = t.player2Id || `part-${t.id}-2`;
+          t.player1Id = p1Id;
+          t.player2Id = p2Id;
+          t.region = t.region || regionFallback;
+          delete t.player1.whatsapp;
+          delete t.player2.whatsapp;
+          t.player1.region = t.player1.region || regionFallback;
+          t.player2.region = t.player2.region || regionFallback;
+
+          derivedParticipants.push(
+            {
+              id: p1Id,
+              name: t.player1.name,
+              region: t.player1.region,
+              categoryId: t.categoryId,
+              level: t.player1.level,
+              status: t.status,
+              createdAt: t.createdAt,
+            },
+            {
+              id: p2Id,
+              name: t.player2.name,
+              region: t.player2.region,
+              categoryId: t.categoryId,
+              level: t.player2.level,
+              status: t.status,
+              createdAt: t.createdAt,
+            }
+          );
+        }
+        const seedExtra = createSeedState().participants.slice(-4);
+        parsed.participants = [...derivedParticipants, ...seedExtra];
+        migrated = true;
+      }
+      const seedParticipantsById = new Map(
+        createSeedState().participants.map((p) => [p.id, p])
+      );
+      for (const p of parsed.participants) {
+        if (!p.representation) {
+          p.representation = seedParticipantsById.get(p.id)?.representation || 'Retail Sales';
+          migrated = true;
+        }
+      }
+      const participantRepById = new Map(
+        parsed.participants.map((p) => [p.id, p.representation || 'Retail Sales'])
+      );
+      for (const t of parsed.teams) {
+        if (!t.player1.representation) {
+          t.player1.representation =
+            (t.player1Id && participantRepById.get(t.player1Id)) || 'Retail Sales';
+          migrated = true;
+        }
+        if (!t.player2.representation) {
+          t.player2.representation =
+            (t.player2Id && participantRepById.get(t.player2Id)) || 'Retail Sales';
+          migrated = true;
+        }
+      }
+      const doubleManCategory = {
+        id: 'cat-double-man',
+        name: 'Double Man',
+        level: 'Open Men',
+        maxTeams: 16,
+        entryFee: 800000,
+      };
+      if (
+        Array.isArray(parsed.categories) &&
+        !parsed.categories.some(
+          (c) => c.id === doubleManCategory.id || c.name.trim().toLowerCase() === 'double man'
+        )
+      ) {
+        const bronzeIdx = parsed.categories.findIndex((c) => c.id === 'cat-bronze');
+        if (bronzeIdx >= 0) {
+          parsed.categories.splice(bronzeIdx, 0, doubleManCategory);
+        } else {
+          parsed.categories.push(doubleManCategory);
+        }
+        migrated = true;
+      }
+      if (parsed.tournament) {
+        if (parsed.tournament.name === 'Padel League & Share') {
+          parsed.tournament.name = 'Padel League & Share 2026';
+          migrated = true;
+        }
+        if (
+          parsed.tournament.caption &&
+          (parsed.tournament.caption.includes('Retail Sales') ||
+            parsed.tournament.caption.includes('Awarding') ||
+            parsed.tournament.caption.includes('Padel Turnamen'))
+        ) {
+          parsed.tournament.caption = 'Sulawesi Edition';
+          migrated = true;
+        }
+      }
+      if (migrated) {
+        saveStore(parsed);
       }
       cachedState = parsed;
       return cachedState;
@@ -471,7 +648,15 @@ export function getPublicState(data: PersistedData): TournamentState {
 }
 
 export function resetSeedStore(): PersistedData {
+  const existingSecrets = loadStore()._secrets;
   const seed = createSeedState();
+  if (existingSecrets) {
+    seed._secrets = {
+      token: existingSecrets.token || seed._secrets?.token || '',
+      adminUsername: existingSecrets.adminUsername,
+      adminPasswordHash: existingSecrets.adminPasswordHash,
+    };
+  }
   for (const t of seed.teams) {
     if (t.teamName === 'Kevin /Bagas') {
       t.teamName = 'Kevin / Bagas';

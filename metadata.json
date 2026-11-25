@@ -1,6 +1,6 @@
 {
-  "name": "PadelLeague — Manajemen Turnamen Padel",
-  "description": "Platform manajemen turnamen padel lengkap: registrasi kategori, pairing, jadwal court, input skor operator, live leaderboard, link hasil publik, display LED stadion, dan notifikasi WhatsApp otomatis.",
+  "name": "Padel League & Share 2026",
+  "description": "Platform manajemen turnamen padel lengkap: registrasi kategori, pairing, jadwal court, input skor operator, live leaderboard, link hasil publik, dan display LED stadion.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

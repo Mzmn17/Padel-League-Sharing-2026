@@ -1,0 +1,158 @@
+{
+  "entities": {
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Core tournament configuration and metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "caption": { "type": "string", "maxLength": 200 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "venue": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "startDate": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "endDate": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "scoringFormat": { "type": "string", "enum": ["best_of_3", "pro_set_9"] },
+        "goldenPointDefault": { "type": "boolean" },
+        "seeded": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "slug", "venue", "city", "startDate", "endDate", "scoringFormat", "goldenPointDefault", "seeded", "updatedAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Tournament division/category such as Men's Open or Double Man.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "level": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "maxTeams": { "type": "integer" },
+        "entryFee": { "type": "integer" }
+      },
+      "required": ["id", "tournamentId", "name", "level", "maxTeams", "entryFee"]
+    },
+    "Court": {
+      "title": "Court",
+      "description": "Padel court at the tournament venue.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "surface": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "isIndoor": { "type": "boolean" }
+      },
+      "required": ["id", "tournamentId", "name", "surface", "isIndoor"]
+    },
+    "Participant": {
+      "title": "Participant",
+      "description": "Individual registered tournament player with region and representation category.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "region": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "representation": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "categoryId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "level": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "status": { "type": "string", "enum": ["registered", "checked_in", "withdrawn"] },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "serverCreatedAt": { "type": "string", "format": "date-time" },
+        "serverUpdatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "tournamentId", "name", "region", "representation", "categoryId", "level", "status", "createdAt", "serverCreatedAt", "serverUpdatedAt"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "Manually formed pair of two participants in a category.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "categoryId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "teamName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "region": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "club": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "seed": { "type": "integer" },
+        "status": { "type": "string", "enum": ["registered", "checked_in", "withdrawn"] },
+        "player1Id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "player2Id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "player1": { "type": "object" },
+        "player2": { "type": "object" },
+        "createdAt": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "serverCreatedAt": { "type": "string", "format": "date-time" },
+        "serverUpdatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "tournamentId", "categoryId", "teamName", "region", "club", "status", "player1Id", "player2Id", "player1", "player2", "createdAt", "serverCreatedAt", "serverUpdatedAt"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Scheduled or live padel match with score state.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "categoryId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "stage": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "matchNumber": { "type": "integer" },
+        "teamAId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "teamBId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "courtId": { "type": "string", "maxLength": 64 },
+        "scheduledDate": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "scheduledTime": { "type": "string", "minLength": 4, "maxLength": 10 },
+        "status": { "type": "string", "enum": ["scheduled", "live", "completed", "postponed"] },
+        "score": { "type": "object" },
+        "updatedAt": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "serverUpdatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "tournamentId", "categoryId", "stage", "matchNumber", "teamAId", "teamBId", "scheduledDate", "scheduledTime", "status", "score", "updatedAt", "serverUpdatedAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized tournament administrator entry.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "role": { "type": "string", "enum": ["admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/tournaments/{tournamentId}": {
+      "schema": { "$ref": "#/entities/Tournament" },
+      "description": "Root tournament configuration document."
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Tournament categories including Men's Open, Women's Open, Mixed Doubles, Double Man, and Bronze."
+    },
+    "/courts/{courtId}": {
+      "schema": { "$ref": "#/entities/Court" },
+      "description": "Venue padel courts."
+    },
+    "/participants/{participantId}": {
+      "schema": { "$ref": "#/entities/Participant" },
+      "description": "Individual tournament participants."
+    },
+    "/teams/{teamId}": {
+      "schema": { "$ref": "#/entities/Team" },
+      "description": "Manually paired double teams."
+    },
+    "/matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Match schedules and live scoring state."
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Tournament admin access control records."
+    }
+  }
+}

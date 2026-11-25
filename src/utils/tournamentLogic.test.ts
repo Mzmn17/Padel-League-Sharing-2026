@@ -2,16 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyPadelPoint,
+  buildDefaultPairName,
   buildWhatsAppScheduleMessage,
   computeLeaderboard,
   createInitialScore,
   detectScheduleConflict,
+  findTeamForParticipant,
+  formatPairRegion,
+  formatTournamentScheduleDate,
   generateKnockoutPairings,
   generateRoundRobinPairings,
+  getCourtLedFocusSlots,
   isValidWhatsAppNumber,
   normalizeWhatsAppNumber,
 } from './tournamentLogic.ts';
-import type { Match, Team } from '../types/tournament.ts';
+import type { Court, Match, Team } from '../types/tournament.ts';
 
 function makeTeam(id: string, name: string, categoryId = 'cat-1', seed: number | null = null): Team {
   return {
@@ -234,4 +239,90 @@ test('buildWhatsAppScheduleMessage includes court, time, teams, and public link'
   assert.match(msg, /Court 1 Panoramic/);
   assert.match(msg, /14:30/);
   assert.match(msg, /Raka \/ Dimas/);
+});
+
+test('formatTournamentScheduleDate formats single-day Friday Nov 27 2026 accurately', () => {
+  assert.equal(
+    formatTournamentScheduleDate('2026-11-27', '2026-11-27'),
+    'Jumat, 27 November 2026'
+  );
+  assert.equal(
+    formatTournamentScheduleDate('2026-11-27', '2026-11-28'),
+    'Jumat, 27 November 2026 – Sabtu, 28 November 2026'
+  );
+});
+
+test('getCourtLedFocusSlots returns 4 court focus options with live and next matches', () => {
+  const courts: Court[] = [
+    { id: 'c1', name: 'Court 1 · Center Panoramic', surface: 'Mondo', isIndoor: true },
+    { id: 'c2', name: 'Court 2 · North Glass', surface: 'Mondo', isIndoor: true },
+    { id: 'c3', name: 'Court 3 · South Arena', surface: 'Turf', isIndoor: false },
+    { id: 'c4', name: 'Court 4 · Club Court', surface: 'Turf', isIndoor: false },
+  ];
+  const matches: Match[] = [
+    {
+      id: 'm1',
+      categoryId: 'cat-1',
+      stage: 'Grup A',
+      matchNumber: 1,
+      teamAId: 't1',
+      teamBId: 't2',
+      courtId: 'c1',
+      scheduledDate: '2026-11-27',
+      scheduledTime: '10:30',
+      status: 'live',
+      score: createInitialScore(),
+      updatedAt: '2026-11-27T10:30:00Z',
+    },
+    {
+      id: 'm2',
+      categoryId: 'cat-1',
+      stage: 'Grup A',
+      matchNumber: 2,
+      teamAId: 't3',
+      teamBId: 't4',
+      courtId: 'c3',
+      scheduledDate: '2026-11-27',
+      scheduledTime: '11:30',
+      status: 'scheduled',
+      score: createInitialScore(),
+      updatedAt: '2026-11-27T08:00:00Z',
+    },
+    {
+      id: 'm3',
+      categoryId: 'cat-1',
+      stage: 'Grup A',
+      matchNumber: 3,
+      teamAId: 't5',
+      teamBId: 't6',
+      courtId: 'c3',
+      scheduledDate: '2026-11-27',
+      scheduledTime: '13:00',
+      status: 'scheduled',
+      score: createInitialScore(),
+      updatedAt: '2026-11-27T08:00:00Z',
+    },
+  ];
+
+  const slots = getCourtLedFocusSlots(courts, matches);
+  assert.equal(slots.length, 4);
+  assert.equal(slots[0].shortLabel, 'Court 1');
+  assert.equal(slots[0].liveMatch?.id, 'm1');
+  assert.equal(slots[2].nextMatch?.id, 'm2');
+  assert.equal(slots[3].liveMatch, null);
+  assert.equal(slots[3].nextMatch, null);
+});
+
+test('manual pairing helpers derive pair name, combined region, and participant pairing status', () => {
+  assert.equal(buildDefaultPairName('Raka Pratama', 'Dimas Wijaya'), 'Raka / Dimas');
+  assert.equal(formatPairRegion('Makassar', 'makassar'), 'Makassar');
+  assert.equal(formatPairRegion('Makassar', 'Manado'), 'Makassar / Manado');
+
+  const team: Team = {
+    ...makeTeam('t1', 'Raka / Dimas'),
+    player1Id: 'p1',
+    player2Id: 'p2',
+  };
+  assert.equal(findTeamForParticipant('p1', [team])?.id, 't1');
+  assert.equal(findTeamForParticipant('p3', [team]), undefined);
 });

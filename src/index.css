@@ -12,12 +12,18 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: #f8fafc;
-    color: #0f172a;
+    color-scheme: dark;
+    background-color: #06133b;
+    color: #f1f5f9;
   }
 
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
+  }
+
+  select option {
+    background-color: #0a1d52;
+    color: #f1f5f9;
   }
 }
 

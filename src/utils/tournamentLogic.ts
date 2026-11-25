@@ -1,4 +1,5 @@
 import type {
+  Court,
   LeaderboardRow,
   Match,
   PadelScoreState,
@@ -516,4 +517,111 @@ export function buildWhatsAppScheduleMessage(params: {
     '',
     `Pantau skor live & leaderboard: ${publicUrl}`,
   ].join('\n');
+}
+
+const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const BULAN_ID = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+];
+
+function formatSingleDateId(isoDate: string): string {
+  const parts = isoDate.split('-').map((n) => Number(n));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
+    return isoDate;
+  }
+  const [y, m, d] = parts;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(dt.getTime())) return isoDate;
+  const dayName = HARI_ID[dt.getUTCDay()];
+  const monthName = BULAN_ID[dt.getUTCMonth()];
+  return `${dayName}, ${dt.getUTCDate()} ${monthName} ${dt.getUTCFullYear()}`;
+}
+
+export function formatTournamentScheduleDate(startDate: string, endDate: string): string {
+  const startLabel = formatSingleDateId(startDate);
+  if (!endDate || startDate === endDate) {
+    return startLabel;
+  }
+  return `${startLabel} – ${formatSingleDateId(endDate)}`;
+}
+
+export interface CourtLedFocusSlot {
+  court: Court;
+  shortLabel: string;
+  liveMatch: Match | null;
+  nextMatch: Match | null;
+  latestCompletedMatch: Match | null;
+}
+
+export function getCourtLedFocusSlots(
+  courts: Court[],
+  matches: Match[]
+): CourtLedFocusSlot[] {
+  return courts.slice(0, 4).map((court, idx) => {
+    const courtMatches = matches.filter((m) => m.courtId === court.id);
+    const liveMatch = courtMatches.find((m) => m.status === 'live') || null;
+    const nextMatch =
+      courtMatches
+        .filter((m) => m.status === 'scheduled')
+        .slice()
+        .sort((a, b) => {
+          const d = a.scheduledDate.localeCompare(b.scheduledDate);
+          if (d !== 0) return d;
+          const t = a.scheduledTime.localeCompare(b.scheduledTime);
+          if (t !== 0) return t;
+          return a.matchNumber - b.matchNumber;
+        })[0] || null;
+    const latestCompletedMatch =
+      courtMatches
+        .filter((m) => m.status === 'completed')
+        .slice()
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] || null;
+
+    const shortLabel = court.name.split('·')[0].trim() || `Court ${idx + 1}`;
+    return {
+      court,
+      shortLabel,
+      liveMatch,
+      nextMatch,
+      latestCompletedMatch,
+    };
+  });
+}
+
+export function findTeamForParticipant(
+  participantId: string,
+  teams: Team[]
+): Team | undefined {
+  return teams.find(
+    (t) =>
+      t.status !== 'withdrawn' &&
+      (t.player1Id === participantId || t.player2Id === participantId)
+  );
+}
+
+export function formatPairRegion(region1: string, region2: string): string {
+  const r1 = region1.trim();
+  const r2 = region2.trim();
+  if (!r1 && !r2) return 'Sulawesi Selatan';
+  if (!r2) return r1;
+  if (!r1) return r2;
+  if (r1.toLowerCase() === r2.toLowerCase()) return r1;
+  return `${r1} / ${r2}`;
+}
+
+export function buildDefaultPairName(name1: string, name2: string): string {
+  const f1 = name1.trim().split(/\s+/)[0] || 'Pemain 1';
+  const f2 = name2.trim().split(/\s+/)[0] || 'Pemain 2';
+  return `${f1} / ${f2}`;
 }

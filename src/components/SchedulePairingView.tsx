@@ -4,16 +4,19 @@ import {
   BellRing,
   CalendarPlus,
   Edit3,
+  Lock,
   Plus,
   Shuffle,
   Trash2,
   X,
 } from 'lucide-react';
 import type { Match, MatchStatus, TournamentState } from '../types/tournament.ts';
-import { formatScoreSummary } from '../utils/tournamentLogic.ts';
+import { formatScoreSummary, formatTournamentScheduleDate } from '../utils/tournamentLogic.ts';
 
 interface SchedulePairingViewProps {
   state: TournamentState;
+  isAdmin: boolean;
+  onRequireAdminLogin: () => void;
   onCreateMatch: (payload: {
     categoryId: string;
     stage: string;
@@ -58,6 +61,8 @@ const STATUS_LABEL: Record<MatchStatus, string> = {
 
 export function SchedulePairingView({
   state,
+  isAdmin,
+  onRequireAdminLogin,
   onCreateMatch,
   onAutoPairCategory,
   onUpdateMatchSchedule,
@@ -107,50 +112,86 @@ export function SchedulePairingView({
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-bold text-white">
             Pairing Pertandingan &amp; Jadwal Court
           </h1>
-          <p className="text-sm text-slate-500">
-            Atur pairing pasangan, pembagian court, dan waktu main. Pembaruan jadwal otomatis
-            mengirim notifikasi WhatsApp ke seluruh pemain.
+          <p className="text-sm text-blue-200/75">
+            Jadwal Resmi:{' '}
+            <span className="font-semibold text-sky-300">
+              {formatTournamentScheduleDate(state.tournament.startDate, state.tournament.endDate)}
+            </span>{' '}
+            {state.tournament.startDate === state.tournament.endDate ? '(1 Hari Penuh)' : ''} ·
+            Pembaruan jadwal otomatis mengirim notifikasi WhatsApp ke seluruh pemain.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowAutoModal(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Shuffle className="w-4 h-4" />
-            Auto-Pairing Kategori
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowCourtModal(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Tambah Court
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowManualModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <CalendarPlus className="w-4 h-4" />
-            Buat Pertandingan
-          </button>
+          {isAdmin ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowAutoModal(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#0D2363] hover:bg-[#132E7D] text-white border border-[#284BA8] text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Shuffle className="w-4 h-4" />
+                Auto-Pairing Kategori
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCourtModal(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#0D2363] hover:bg-[#132E7D] text-white border border-[#284BA8] text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Tambah Court
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowManualModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <CalendarPlus className="w-4 h-4" />
+                Buat Pertandingan
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onRequireAdminLogin}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Lock className="w-4 h-4" />
+              Login Admin untuk Kelola Jadwal
+            </button>
+          )}
         </div>
       </div>
+
+      {!isAdmin && (
+        <div className="px-4 py-3 bg-[#0A1D52] border border-[#284BA8] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 text-xs sm:text-sm text-blue-100">
+            <Lock className="w-4 h-4 text-sky-300 shrink-0" />
+            <span>
+              Mode Lihat Jadwal: Login sebagai Admin untuk membuat pairing, mengubah court/jam
+              pertandingan, atau menghapus jadwal.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onRequireAdminLogin}
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            Login Admin
+          </button>
+        </div>
+      )}
 
       {feedback && (
         <div
           role="status"
           className={`px-4 py-3 rounded-lg border text-sm flex items-center justify-between gap-3 ${
             feedback.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-              : 'bg-red-50 border-red-200 text-red-900'
+              ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-200'
+              : 'bg-red-950/70 border-red-500/40 text-red-200'
           }`}
         >
           <span>{feedback.text}</span>
@@ -166,14 +207,14 @@ export function SchedulePairingView({
       )}
 
       {/* Category Filter */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-1">
+      <div className="bg-[#0A1D52] border border-[#1B3782] rounded-xl p-3 flex flex-wrap items-center gap-1">
         <button
           type="button"
           onClick={() => setSelectedCategory('all')}
           className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
             selectedCategory === 'all'
-              ? 'bg-slate-900 text-white'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-blue-600 text-white'
+              : 'text-blue-200 hover:bg-[#0E266B] hover:text-white'
           }`}
         >
           Semua Kategori ({state.matches.length})
@@ -187,8 +228,8 @@ export function SchedulePairingView({
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 selectedCategory === cat.id
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-blue-200 hover:bg-[#0E266B] hover:text-white'
               }`}
             >
               {cat.name} ({cnt})
@@ -204,17 +245,17 @@ export function SchedulePairingView({
           return (
             <div
               key={court.id}
-              className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col"
+              className="bg-[#0A1D52] border border-[#1B3782] rounded-xl overflow-hidden flex flex-col"
             >
-              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                <div className="text-sm font-bold text-slate-900">{court.name}</div>
-                <div className="text-xs text-slate-500">
+              <div className="px-4 py-3 bg-[#071540] border-b border-[#1B3782]">
+                <div className="text-sm font-bold text-white">{court.name}</div>
+                <div className="text-xs text-blue-200/75">
                   {court.surface} · {court.isIndoor ? 'Indoor' : 'Outdoor'}
                 </div>
               </div>
-              <div className="divide-y divide-slate-200 flex-1">
+              <div className="divide-y divide-[#1B3782] flex-1">
                 {courtMatches.length === 0 ? (
-                  <p className="p-4 text-xs text-slate-400">Belum ada jadwal di court ini.</p>
+                  <p className="p-4 text-xs text-blue-300/60">Belum ada jadwal di court ini.</p>
                 ) : (
                   courtMatches.map((m) => {
                     const teamA = state.teams.find((t) => t.id === m.teamAId);
@@ -223,51 +264,53 @@ export function SchedulePairingView({
                     return (
                       <div key={m.id} className="p-3.5 space-y-2">
                         <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="font-mono font-semibold text-slate-700 tabular-nums">
+                          <span className="font-mono font-semibold text-blue-200 tabular-nums">
                             {m.scheduledTime} WIB · #{m.matchNumber}
                           </span>
                           <span
                             className={`font-semibold ${
                               m.status === 'live'
-                                ? 'text-emerald-700'
+                                ? 'text-emerald-400'
                                 : m.status === 'completed'
-                                  ? 'text-slate-500'
+                                  ? 'text-blue-300/60'
                                   : m.status === 'postponed'
-                                    ? 'text-red-700'
-                                    : 'text-blue-700'
+                                    ? 'text-red-400'
+                                    : 'text-sky-300'
                             }`}
                           >
                             {STATUS_LABEL[m.status]}
                           </span>
                         </div>
-                        <div className="text-sm font-semibold text-slate-900 leading-snug">
-                          {teamA?.teamName} <span className="text-slate-400 font-normal">vs</span>{' '}
+                        <div className="text-sm font-semibold text-white leading-snug">
+                          {teamA?.teamName} <span className="text-blue-300/60 font-normal">vs</span>{' '}
                           {teamB?.teamName}
                         </div>
-                        <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                        <div className="flex items-center justify-between gap-2 text-xs text-blue-200/75">
                           <span>
                             {cat?.name} · {m.stage}
                           </span>
                           {(m.status === 'live' || m.status === 'completed') && (
-                            <span className="font-mono font-semibold text-slate-900 tabular-nums">
+                            <span className="font-mono font-semibold text-white tabular-nums">
                               {formatScoreSummary(m.score)}
                             </span>
                           )}
                         </div>
                         <div className="pt-1 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setEditingMatch(m)}
-                            className="px-2.5 py-1 text-xs font-medium text-slate-700 border border-slate-200 hover:bg-slate-100 rounded-md cursor-pointer"
-                          >
-                            Ubah Court/Jam
-                          </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingMatch(m)}
+                              className="px-2.5 py-1 text-xs font-medium text-blue-100 border border-[#284BA8] hover:bg-[#132E7D] rounded-md cursor-pointer"
+                            >
+                              Ubah Court/Jam
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => onOpenOperatorMatch(m.id)}
-                            className="px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-200 hover:bg-blue-50 rounded-md cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-medium text-sky-300 border border-[#284BA8] hover:bg-[#132E7D] rounded-md cursor-pointer"
                           >
-                            Skor
+                            {isAdmin ? 'Skor' : 'Lihat Skor'}
                           </button>
                         </div>
                       </div>
@@ -281,12 +324,12 @@ export function SchedulePairingView({
       </section>
 
       {/* Full Schedule Table */}
-      <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-base font-bold text-slate-900">Daftar Lengkap Jadwal Pertandingan</h2>
+      <section className="bg-[#0A1D52] border border-[#1B3782] rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#1B3782]">
+          <h2 className="text-base font-bold text-white">Daftar Lengkap Jadwal Pertandingan</h2>
         </div>
         {filteredMatches.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">
+          <div className="p-8 text-center text-sm text-blue-200/75">
             Belum ada pertandingan untuk kategori ini. Klik &ldquo;Auto-Pairing Kategori&rdquo; atau
             &ldquo;Buat Pertandingan&rdquo;.
           </div>
@@ -294,7 +337,7 @@ export function SchedulePairingView({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                <tr className="border-b border-[#1B3782] bg-[#071540] text-xs font-semibold text-blue-200/80">
                   <th className="py-3 px-4">Match</th>
                   <th className="py-3 px-4">Kategori &amp; Babak</th>
                   <th className="py-3 px-4">Pasangan Bertanding</th>
@@ -304,81 +347,92 @@ export function SchedulePairingView({
                   <th className="py-3 px-4 text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 text-sm">
+              <tbody className="divide-y divide-[#1B3782] text-sm">
                 {filteredMatches.map((m) => {
                   const teamA = state.teams.find((t) => t.id === m.teamAId);
                   const teamB = state.teams.find((t) => t.id === m.teamBId);
                   const cat = state.categories.find((c) => c.id === m.categoryId);
                   const court = state.courts.find((c) => c.id === m.courtId);
                   return (
-                    <tr key={m.id} className="hover:bg-slate-50/70">
-                      <td className="py-3 px-4 font-mono font-semibold text-slate-700 tabular-nums">
+                    <tr key={m.id} className="hover:bg-[#0E2563]/60">
+                      <td className="py-3 px-4 font-mono font-semibold text-blue-200 tabular-nums">
                         #{m.matchNumber}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-medium text-slate-900">{cat?.name}</div>
-                        <div className="text-xs text-slate-500">{m.stage}</div>
+                        <div className="font-medium text-white">{cat?.name}</div>
+                        <div className="text-xs text-blue-200/75">{m.stage}</div>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900">
+                        <div className="font-semibold text-white">
                           {teamA?.teamName} vs {teamB?.teamName}
                         </div>
                         {(m.status === 'live' || m.status === 'completed') && (
-                          <div className="text-xs font-mono text-slate-600 tabular-nums">
+                          <div className="text-xs font-mono text-sky-300 tabular-nums">
                             Skor: {formatScoreSummary(m.score)}
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-slate-700">
+                      <td className="py-3 px-4 text-blue-100">
                         {court?.name || 'Belum ditentukan'}
                       </td>
-                      <td className="py-3 px-4 font-mono text-xs text-slate-700 tabular-nums whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono text-xs text-blue-100 tabular-nums whitespace-nowrap">
                         {m.scheduledDate} · {m.scheduledTime} WIB
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span
                           className={`text-xs font-semibold ${
                             m.status === 'live'
-                              ? 'text-emerald-700'
+                              ? 'text-emerald-400'
                               : m.status === 'completed'
-                                ? 'text-slate-600'
+                                ? 'text-blue-200/70'
                                 : m.status === 'postponed'
-                                  ? 'text-red-700'
-                                  : 'text-blue-700'
+                                  ? 'text-red-400'
+                                  : 'text-sky-300'
                           }`}
                         >
                           {STATUS_LABEL[m.status]}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5">
-                          {m.status === 'scheduled' && (
+                        {isAdmin ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            {m.status === 'scheduled' && (
+                              <button
+                                type="button"
+                                onClick={() => handleCallToCourt(m)}
+                                className="px-2.5 py-1.5 text-xs font-semibold text-emerald-300 border border-emerald-500/40 hover:bg-emerald-950/60 rounded-md inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <BellRing className="w-3.5 h-3.5" />
+                                Panggil Court
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleCallToCourt(m)}
-                              className="px-2.5 py-1.5 text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-50 rounded-md inline-flex items-center gap-1 cursor-pointer"
+                              onClick={() => setEditingMatch(m)}
+                              aria-label={`Edit jadwal Match #${m.matchNumber}`}
+                              className="p-1.5 text-blue-200 hover:text-white border border-[#284BA8] hover:bg-[#132E7D] rounded-md cursor-pointer"
                             >
-                              <BellRing className="w-3.5 h-3.5" />
-                              Panggil Court
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() => onDeleteMatch(m.id)}
+                              aria-label={`Hapus Match #${m.matchNumber}`}
+                              className="p-1.5 text-red-400 hover:text-red-200 border border-[#284BA8] hover:bg-red-950/60 rounded-md cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             type="button"
-                            onClick={() => setEditingMatch(m)}
-                            aria-label={`Edit jadwal Match #${m.matchNumber}`}
-                            className="p-1.5 text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 rounded-md cursor-pointer"
+                            onClick={onRequireAdminLogin}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-300/80 hover:text-white border border-[#1B3782] hover:bg-[#132E7D] rounded-md cursor-pointer"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            <Lock className="w-3 h-3" />
+                            Edit (Admin)
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => onDeleteMatch(m.id)}
-                            aria-label={`Hapus Match #${m.matchNumber}`}
-                            className="p-1.5 text-red-600 hover:text-red-800 border border-slate-200 hover:bg-red-50 rounded-md cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -531,35 +585,35 @@ function ManualMatchModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="manual-match-title"
-      className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#030A21]/75 backdrop-blur-xs flex items-center justify-center p-4"
     >
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg overflow-hidden shadow-xl">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 id="manual-match-title" className="text-lg font-bold text-slate-900">
+      <div className="bg-[#0A1D52] border border-[#1B3782] rounded-xl w-full max-w-lg overflow-hidden shadow-2xl">
+        <div className="px-6 py-4 border-b border-[#1B3782] bg-[#081744] flex items-center justify-between">
+          <h2 id="manual-match-title" className="text-lg font-bold text-white">
             Buat Pairing &amp; Jadwal Pertandingan
           </h2>
           <button type="button" onClick={onClose} aria-label="Tutup" className="cursor-pointer">
-            <X className="w-5 h-5 text-slate-500" />
+            <X className="w-5 h-5 text-blue-200 hover:text-white" />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg">
+            <div role="alert" className="p-3 bg-red-950/70 border border-red-500/40 text-red-200 text-xs rounded-lg">
               {error}
             </div>
           )}
 
           {conflictMsg && (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-lg space-y-2">
+            <div className="p-3 bg-amber-950/70 border border-amber-500/40 text-amber-200 text-xs rounded-lg space-y-2">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-300" />
                 <span>{conflictMsg}</span>
               </div>
               <button
                 type="button"
                 onClick={() => submitForm(true)}
-                className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-md cursor-pointer"
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-md cursor-pointer"
               >
                 Tetap Simpan Jadwal Ini
               </button>
@@ -567,14 +621,14 @@ function ManualMatchModal({
           )}
 
           <div>
-            <label htmlFor="m-cat" className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="m-cat" className="block text-xs font-semibold text-blue-100 mb-1">
               Kategori
             </label>
             <select
               id="m-cat"
               value={categoryId}
               onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+              className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
             >
               {state.categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -586,14 +640,14 @@ function ManualMatchModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="m-teamA" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="m-teamA" className="block text-xs font-semibold text-blue-100 mb-1">
                 Pasangan A
               </label>
               <select
                 id="m-teamA"
                 value={teamAId}
                 onChange={(e) => setTeamAId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               >
                 {categoryTeams.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -603,14 +657,14 @@ function ManualMatchModal({
               </select>
             </div>
             <div>
-              <label htmlFor="m-teamB" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="m-teamB" className="block text-xs font-semibold text-blue-100 mb-1">
                 Pasangan B
               </label>
               <select
                 id="m-teamB"
                 value={teamBId}
                 onChange={(e) => setTeamBId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               >
                 {categoryTeams.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -623,7 +677,7 @@ function ManualMatchModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="m-stage" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="m-stage" className="block text-xs font-semibold text-blue-100 mb-1">
                 Babak / Stage
               </label>
               <input
@@ -631,18 +685,18 @@ function ManualMatchModal({
                 type="text"
                 value={stage}
                 onChange={(e) => setStage(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
             </div>
             <div>
-              <label htmlFor="m-court" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="m-court" className="block text-xs font-semibold text-blue-100 mb-1">
                 Court
               </label>
               <select
                 id="m-court"
                 value={courtId}
                 onChange={(e) => setCourtId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               >
                 {state.courts.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -655,19 +709,21 @@ function ManualMatchModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="m-date" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="m-date" className="block text-xs font-semibold text-blue-100 mb-1">
                 Tanggal
               </label>
               <input
                 id="m-date"
                 type="date"
                 value={scheduledDate}
+                min={state.tournament.startDate}
+                max={state.tournament.endDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
             </div>
             <div>
-              <label htmlFor="m-time" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="m-time" className="block text-xs font-semibold text-blue-100 mb-1">
                 Jam (WIB)
               </label>
               <input
@@ -675,26 +731,26 @@ function ManualMatchModal({
                 type="time"
                 value={scheduledTime}
                 onChange={(e) => setScheduledTime(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-blue-100 cursor-pointer">
             <input
               type="checkbox"
               checked={notifyWhatsApp}
               onChange={(e) => setNotifyWhatsApp(e.target.checked)}
-              className="rounded border-slate-300"
+              className="rounded border-[#284BA8]"
             />
             Kirim notifikasi WhatsApp otomatis ke ke-4 pemain
           </label>
 
-          <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+          <div className="pt-3 border-t border-[#1B3782] flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
+              className="px-4 py-2 text-sm text-blue-200 hover:bg-[#0E266B] hover:text-white rounded-lg cursor-pointer"
             >
               Batal
             </button>
@@ -702,7 +758,7 @@ function ManualMatchModal({
               type="button"
               disabled={saving}
               onClick={() => submitForm(false)}
-              className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold rounded-lg cursor-pointer"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg cursor-pointer"
             >
               {saving ? 'Menyimpan...' : 'Simpan Jadwal'}
             </button>
@@ -754,34 +810,34 @@ function AutoPairModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="auto-pair-title"
-      className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#030A21]/75 backdrop-blur-xs flex items-center justify-center p-4"
     >
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md overflow-hidden shadow-xl">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 id="auto-pair-title" className="text-lg font-bold text-slate-900">
+      <div className="bg-[#0A1D52] border border-[#1B3782] rounded-xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div className="px-6 py-4 border-b border-[#1B3782] bg-[#081744] flex items-center justify-between">
+          <h2 id="auto-pair-title" className="text-lg font-bold text-white">
             Auto-Pairing &amp; Distribusi Court
           </h2>
           <button type="button" onClick={onClose} aria-label="Tutup" className="cursor-pointer">
-            <X className="w-5 h-5 text-slate-500" />
+            <X className="w-5 h-5 text-blue-200 hover:text-white" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg">
+            <div role="alert" className="p-3 bg-red-950/70 border border-red-500/40 text-red-200 text-xs rounded-lg">
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="ap-cat" className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="ap-cat" className="block text-xs font-semibold text-blue-100 mb-1">
               Kategori
             </label>
             <select
               id="ap-cat"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+              className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
             >
               {state.categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -792,14 +848,14 @@ function AutoPairModal({
           </div>
 
           <div>
-            <label htmlFor="ap-mode" className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="ap-mode" className="block text-xs font-semibold text-blue-100 mb-1">
               Format Pairing
             </label>
             <select
               id="ap-mode"
               value={mode}
               onChange={(e) => setMode(e.target.value as 'round_robin' | 'knockout')}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+              className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
             >
               <option value="round_robin">Round Robin (Semua Pasangan Saling Bertemu)</option>
               <option value="knockout">Babak Gugur (Pairing Berdasarkan Seed)</option>
@@ -807,7 +863,7 @@ function AutoPairModal({
           </div>
 
           <div>
-            <label htmlFor="ap-stage" className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="ap-stage" className="block text-xs font-semibold text-blue-100 mb-1">
               Label Babak
             </label>
             <input
@@ -815,25 +871,27 @@ function AutoPairModal({
               type="text"
               value={stage}
               onChange={(e) => setStage(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="ap-date" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="ap-date" className="block text-xs font-semibold text-blue-100 mb-1">
                 Tanggal
               </label>
               <input
                 id="ap-date"
                 type="date"
                 value={scheduledDate}
+                min={state.tournament.startDate}
+                max={state.tournament.endDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
             </div>
             <div>
-              <label htmlFor="ap-time" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="ap-time" className="block text-xs font-semibold text-blue-100 mb-1">
                 Mulai Pukul
               </label>
               <input
@@ -841,23 +899,23 @@ function AutoPairModal({
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+          <div className="pt-3 border-t border-[#1B3782] flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
+              className="px-4 py-2 text-sm text-blue-200 hover:bg-[#0E266B] hover:text-white rounded-lg cursor-pointer"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold rounded-lg cursor-pointer"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg cursor-pointer"
             >
               {saving ? 'Memproses...' : 'Generate Pairing'}
             </button>
@@ -931,40 +989,40 @@ function EditScheduleModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-sched-title"
-      className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#030A21]/75 backdrop-blur-xs flex items-center justify-center p-4"
     >
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md overflow-hidden shadow-xl">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+      <div className="bg-[#0A1D52] border border-[#1B3782] rounded-xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div className="px-6 py-4 border-b border-[#1B3782] bg-[#081744] flex items-center justify-between">
           <div>
-            <h2 id="edit-sched-title" className="text-lg font-bold text-slate-900">
+            <h2 id="edit-sched-title" className="text-lg font-bold text-white">
               Atur Jadwal Match #{match.matchNumber}
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-blue-200/75">
               {teamA?.teamName} vs {teamB?.teamName}
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Tutup" className="cursor-pointer">
-            <X className="w-5 h-5 text-slate-500" />
+            <X className="w-5 h-5 text-blue-200 hover:text-white" />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg">
+            <div role="alert" className="p-3 bg-red-950/70 border border-red-500/40 text-red-200 text-xs rounded-lg">
               {error}
             </div>
           )}
 
           {conflictMsg && (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-lg space-y-2">
+            <div className="p-3 bg-amber-950/70 border border-amber-500/40 text-amber-200 text-xs rounded-lg space-y-2">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-300" />
                 <span>{conflictMsg}</span>
               </div>
               <button
                 type="button"
                 onClick={() => submitForm(true)}
-                className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-md cursor-pointer"
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-md cursor-pointer"
               >
                 Tetap Simpan Jadwal
               </button>
@@ -972,14 +1030,14 @@ function EditScheduleModal({
           )}
 
           <div>
-            <label htmlFor="ed-court" className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="ed-court" className="block text-xs font-semibold text-blue-100 mb-1">
               Court
             </label>
             <select
               id="ed-court"
               value={courtId}
               onChange={(e) => setCourtId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+              className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
             >
               <option value="">Belum ditentukan</option>
               {state.courts.map((c) => (
@@ -992,19 +1050,21 @@ function EditScheduleModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="ed-date" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="ed-date" className="block text-xs font-semibold text-blue-100 mb-1">
                 Tanggal
               </label>
               <input
                 id="ed-date"
                 type="date"
                 value={scheduledDate}
+                min={state.tournament.startDate}
+                max={state.tournament.endDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
             </div>
             <div>
-              <label htmlFor="ed-time" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="ed-time" className="block text-xs font-semibold text-blue-100 mb-1">
                 Jam (WIB)
               </label>
               <input
@@ -1012,14 +1072,14 @@ function EditScheduleModal({
                 type="time"
                 value={scheduledTime}
                 onChange={(e) => setScheduledTime(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="ed-stage" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="ed-stage" className="block text-xs font-semibold text-blue-100 mb-1">
                 Babak
               </label>
               <input
@@ -1027,18 +1087,18 @@ function EditScheduleModal({
                 type="text"
                 value={stage}
                 onChange={(e) => setStage(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               />
             </div>
             <div>
-              <label htmlFor="ed-status" className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="ed-status" className="block text-xs font-semibold text-blue-100 mb-1">
                 Status
               </label>
               <select
                 id="ed-status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as MatchStatus)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+                className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
               >
                 <option value="scheduled">Terjadwal</option>
                 <option value="live">Berlangsung</option>
@@ -1048,21 +1108,21 @@ function EditScheduleModal({
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-blue-100 cursor-pointer">
             <input
               type="checkbox"
               checked={notifyWhatsApp}
               onChange={(e) => setNotifyWhatsApp(e.target.checked)}
-              className="rounded border-slate-300"
+              className="rounded border-[#284BA8]"
             />
             Kirim notifikasi pembaruan jadwal otomatis via WhatsApp
           </label>
 
-          <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+          <div className="pt-3 border-t border-[#1B3782] flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
+              className="px-4 py-2 text-sm text-blue-200 hover:bg-[#0E266B] hover:text-white rounded-lg cursor-pointer"
             >
               Batal
             </button>
@@ -1070,7 +1130,7 @@ function EditScheduleModal({
               type="button"
               disabled={saving}
               onClick={() => submitForm(false)}
-              className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold rounded-lg cursor-pointer"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg cursor-pointer"
             >
               {saving ? 'Menyimpan...' : 'Simpan & Kirim WA'}
             </button>
@@ -1109,21 +1169,21 @@ function AddCourtModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-court-title"
-      className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#030A21]/75 backdrop-blur-xs flex items-center justify-center p-4"
     >
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-sm overflow-hidden shadow-xl">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 id="add-court-title" className="text-base font-bold text-slate-900">
+      <div className="bg-[#0A1D52] border border-[#1B3782] rounded-xl w-full max-w-sm overflow-hidden shadow-2xl">
+        <div className="px-6 py-4 border-b border-[#1B3782] bg-[#081744] flex items-center justify-between">
+          <h2 id="add-court-title" className="text-base font-bold text-white">
             Tambah Lapangan / Court
           </h2>
           <button type="button" onClick={onClose} aria-label="Tutup" className="cursor-pointer">
-            <X className="w-5 h-5 text-slate-500" />
+            <X className="w-5 h-5 text-blue-200 hover:text-white" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label htmlFor="c-name" className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="c-name" className="block text-xs font-semibold text-blue-100 mb-1">
               Nama Court *
             </label>
             <input
@@ -1133,11 +1193,11 @@ function AddCourtModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Contoh: Court 5 · Rooftop Glass"
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white placeholder:text-blue-300/50"
             />
           </div>
           <div>
-            <label htmlFor="c-surf" className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="c-surf" className="block text-xs font-semibold text-blue-100 mb-1">
               Jenis Lantai / Karpet
             </label>
             <input
@@ -1145,15 +1205,15 @@ function AddCourtModal({
               type="text"
               value={surface}
               onChange={(e) => setSurface(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+              className="w-full px-3 py-2 text-sm border border-[#284BA8] rounded-lg bg-[#06133B] text-white"
             />
           </div>
-          <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-blue-100 cursor-pointer">
             <input
               type="checkbox"
               checked={isIndoor}
               onChange={(e) => setIsIndoor(e.target.checked)}
-              className="rounded border-slate-300"
+              className="rounded border-[#284BA8]"
             />
             Court Indoor (Atap Tertutup)
           </label>
@@ -1161,14 +1221,14 @@ function AddCourtModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
+              className="px-4 py-2 text-sm text-blue-200 hover:bg-[#0E266B] hover:text-white rounded-lg cursor-pointer"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold rounded-lg cursor-pointer"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg cursor-pointer"
             >
               Simpan Court
             </button>

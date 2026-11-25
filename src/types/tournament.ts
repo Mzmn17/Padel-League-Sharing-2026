@@ -32,19 +32,35 @@ export interface Court {
   isIndoor: boolean;
 }
 
+export interface Participant {
+  id: string;
+  name: string;
+  region: string;
+  representation?: string;
+  categoryId: string;
+  level: string;
+  status: TeamStatus;
+  createdAt: string;
+}
+
 export interface PlayerInfo {
   name: string;
-  whatsapp: string;
+  region?: string;
+  representation?: string;
   level: string;
+  whatsapp?: string;
 }
 
 export interface Team {
   id: string;
   categoryId: string;
   teamName: string;
+  region?: string;
   club: string;
   seed: number | null;
   status: TeamStatus;
+  player1Id?: string;
+  player2Id?: string;
   player1: PlayerInfo;
   player2: PlayerInfo;
   createdAt: string;
@@ -128,8 +144,20 @@ export interface TournamentState {
   tournament: TournamentInfo;
   categories: Category[];
   courts: Court[];
+  participants: Participant[];
   teams: Team[];
   matches: Match[];
   whatsappLogs: WhatsAppLog[];
   whatsappConfig: WhatsAppConfigPublic;
 }
+
+export interface AdminAuthStatus {
+  authenticated: boolean;
+  username: string | null;
+  needsSetup: boolean;
+  envConfigured: boolean;
+  signedIn?: boolean;
+  email?: string | null;
+  authReady?: boolean;
+}
+

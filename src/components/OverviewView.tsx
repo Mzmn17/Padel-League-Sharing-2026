@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import {
   ArrowRight,
-  CalendarClock,
   Check,
   Copy,
   ExternalLink,
+  MapPin,
   MonitorPlay,
   Trophy,
   Users,
 } from 'lucide-react';
 import type { TournamentState } from '../types/tournament.ts';
-import { formatScoreSummary } from '../utils/tournamentLogic.ts';
+import {
+  findTeamForParticipant,
+  formatScoreSummary,
+  formatTournamentScheduleDate,
+} from '../utils/tournamentLogic.ts';
 import tournamentBannerImg from '../assets/images/WhatsApp Image 2026-11-24 at 11.29.56.jpeg';
 
 interface OverviewViewProps {
@@ -35,6 +39,11 @@ export function OverviewView({
   const liveMatches = state.matches.filter((m) => m.status === 'live');
   const scheduledMatches = state.matches.filter((m) => m.status === 'scheduled');
   const completedMatches = state.matches.filter((m) => m.status === 'completed');
+  const participants = state.participants || [];
+  const unpairedCount = participants.filter(
+    (p) => !findTeamForParticipant(p.id, state.teams)
+  ).length;
+  const activeTeamsCount = state.teams.filter((t) => t.status !== 'withdrawn').length;
 
   const publicUrl =
     typeof window !== 'undefined' ? `${window.location.origin}/?view=public` : '/?view=public';
@@ -50,11 +59,11 @@ export function OverviewView({
   return (
     <div className="space-y-8">
       {/* Tournament Label Banner + Control Header */}
-      <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="w-full bg-[#06133B] border-b border-slate-200">
+      <section className="bg-[#0A1D52] border border-[#1B3782] rounded-xl overflow-hidden">
+        <div className="w-full bg-[#06133B] border-b border-[#1B3782]">
           <img
             src={tournamentBannerImg}
-            alt="Padel League & Share — Padel Turnamen & Awarding Retail Sales Sulawesi Edition"
+            alt="Padel League & Share 2026 — Sulawesi Edition"
             referrerPolicy="no-referrer"
             className="w-full h-auto max-h-[290px] object-contain mx-auto block"
           />
@@ -62,27 +71,38 @@ export function OverviewView({
 
         <div className="p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
           <div className="space-y-2.5 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-blue-200/75">
               <span>{state.tournament.venue}</span>
               <span aria-hidden="true">·</span>
               <span>{state.tournament.city}</span>
               <span aria-hidden="true">·</span>
-              <span className="tabular-nums">
-                {state.tournament.startDate} s/d {state.tournament.endDate}
+              <span className="tabular-nums font-semibold text-sky-300">
+                {formatTournamentScheduleDate(state.tournament.startDate, state.tournament.endDate)}
               </span>
+              {state.tournament.startDate === state.tournament.endDate && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>1 Hari Pertandingan</span>
+                </>
+              )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 text-balance">
-              {state.tournament.name}
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white text-balance">
+              {state.tournament.name === 'Padel League & Share'
+                ? 'Padel League & Share 2026'
+                : state.tournament.name}
             </h1>
-            {state.tournament.caption && (
-              <p className="text-sm sm:text-base font-semibold text-blue-700">
-                {state.tournament.caption}
-              </p>
-            )}
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Pusat kendali turnamen padel: kelola registrasi kategori, pairing peserta, pembagian
-              court, skor langsung operator, leaderboard real-time, display LED arena, dan
-              notifikasi WhatsApp otomatis.
+            <p className="text-sm sm:text-base font-semibold text-sky-300">
+              {state.tournament.caption &&
+              (state.tournament.caption.toLowerCase().includes('retail sales') ||
+                state.tournament.caption.toLowerCase().includes('awarding') ||
+                state.tournament.caption.toLowerCase().includes('padel turnamen'))
+                ? 'Sulawesi Edition'
+                : state.tournament.caption || 'Sulawesi Edition'}
+            </p>
+            <p className="text-sm text-blue-100/80 leading-relaxed">
+              Pusat kendali turnamen padel: kelola peserta individu &amp; region, pembentukan
+              pasangan manual, pembagian court, skor langsung operator, leaderboard real-time,
+              display LED arena, dan denah venue.
             </p>
           </div>
 
@@ -91,36 +111,36 @@ export function OverviewView({
               <button
                 type="button"
                 onClick={onOpenRegisterModal}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer flex-1"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer flex-1"
               >
                 <Users className="w-4 h-4" />
-                Daftar Pasangan
+                Daftar Peserta
               </button>
               <button
                 type="button"
                 onClick={onOpenLedView}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0D2363] hover:bg-[#132E7D] text-white border border-[#284BA8] text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <MonitorPlay className="w-4 h-4" />
                 Display LED
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-              <span className="text-xs font-mono truncate text-slate-600">{publicUrl}</span>
+            <div className="flex items-center justify-between gap-2 bg-[#06133B] border border-[#1B3782] rounded-lg px-3 py-2">
+              <span className="text-xs font-mono truncate text-blue-200/85">{publicUrl}</span>
               <div className="flex items-center gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={handleCopyPublic}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900 whitespace-nowrap cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-100 hover:text-white whitespace-nowrap cursor-pointer"
                 >
-                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   {copiedLink ? 'Tersalin' : 'Salin'}
                 </button>
                 <button
                   type="button"
                   onClick={onOpenPublicView}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-800 whitespace-nowrap cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-sky-300 hover:text-sky-200 whitespace-nowrap cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   Buka
@@ -132,68 +152,66 @@ export function OverviewView({
       </section>
 
       {/* 4-Column Summary KPI Row */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 bg-white border border-slate-200 rounded-xl divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+      <section className="grid grid-cols-2 lg:grid-cols-4 bg-[#0A1D52] border border-[#1B3782] rounded-xl divide-y lg:divide-y-0 lg:divide-x divide-[#1B3782]">
         <div className="p-5">
-          <p className="text-xs font-medium text-slate-500">Pasangan Terdaftar</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">
-            {state.teams.filter((t) => t.status !== 'withdrawn').length}
+          <p className="text-xs font-medium text-blue-200/75">Peserta Terdaftar</p>
+          <p className="mt-1 text-2xl font-bold text-white tabular-nums">
+            {participants.length}
           </p>
-          <p className="mt-1 text-xs text-slate-500 tabular-nums">
+          <p className="mt-1 text-xs text-blue-200/75 tabular-nums">
+            {unpairedCount} belum berpasangan
+          </p>
+        </div>
+        <div className="p-5">
+          <p className="text-xs font-medium text-blue-200/75">Pasangan Terbentuk</p>
+          <p className="mt-1 text-2xl font-bold text-sky-300 tabular-nums">
+            {activeTeamsCount}
+          </p>
+          <p className="mt-1 text-xs text-blue-200/75 tabular-nums">
             {state.categories.length} kategori aktif
           </p>
         </div>
         <div className="p-5">
-          <p className="text-xs font-medium text-slate-500">Pertandingan Live</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-700 tabular-nums">
+          <p className="text-xs font-medium text-blue-200/75">Pertandingan Live</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-400 tabular-nums">
             {liveMatches.length}
           </p>
-          <p className="mt-1 text-xs text-slate-500 tabular-nums">
+          <p className="mt-1 text-xs text-blue-200/75 tabular-nums">
             {scheduledMatches.length} terjadwal · {completedMatches.length} selesai
           </p>
         </div>
         <div className="p-5">
-          <p className="text-xs font-medium text-slate-500">Court Aktif</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">
+          <p className="text-xs font-medium text-blue-200/75">Court Aktif</p>
+          <p className="mt-1 text-2xl font-bold text-white tabular-nums">
             {state.courts.length}
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-blue-200/75">
             {state.courts.filter((c) => c.isIndoor).length} indoor ·{' '}
             {state.courts.filter((c) => !c.isIndoor).length} outdoor
-          </p>
-        </div>
-        <div className="p-5">
-          <p className="text-xs font-medium text-slate-500">Notifikasi WhatsApp</p>
-          <p className="mt-1 text-2xl font-bold text-blue-700 tabular-nums">
-            {state.whatsappLogs.length}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            {state.whatsappConfig.autoNotifyOnScheduleChange
-              ? 'Otomatis saat jadwal berubah'
-              : 'Mode manual'}
           </p>
         </div>
       </section>
 
       {/* Live Court Status + Category Capacity */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4">
+        <div className="lg:col-span-7 bg-[#0A1D52] border border-[#1B3782] rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#1B3782] flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Status Court Saat Ini</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-base font-bold text-white">Status Court Saat Ini</h2>
+              <p className="text-xs text-blue-200/75">
                 Klik &ldquo;Input Skor&rdquo; untuk membuka konsol operator pertandingan
               </p>
             </div>
             <button
               type="button"
               onClick={() => onNavigate('schedule')}
-              className="text-xs font-semibold text-blue-700 hover:text-blue-800 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+              className="text-xs font-semibold text-sky-300 hover:text-sky-200 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
             >
               Atur Jadwal <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-[#1B3782]">
             {state.courts.map((court) => {
               const liveOnCourt = liveMatches.find((m) => m.courtId === court.id);
               const nextOnCourt = scheduledMatches
@@ -218,24 +236,24 @@ export function OverviewView({
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="font-semibold text-slate-900">{court.name}</span>
-                      <span aria-hidden="true" className="text-slate-300">
+                      <span className="font-semibold text-white">{court.name}</span>
+                      <span aria-hidden="true" className="text-blue-400/50">
                         ·
                       </span>
-                      <span className="text-slate-500">{court.surface}</span>
+                      <span className="text-blue-200/75">{court.surface}</span>
                       {liveOnCourt ? (
                         <>
-                          <span aria-hidden="true" className="text-slate-300">
+                          <span aria-hidden="true" className="text-blue-400/50">
                             ·
                           </span>
-                          <span className="font-semibold text-emerald-700">Sedang Berlangsung</span>
+                          <span className="font-semibold text-emerald-400">Sedang Berlangsung</span>
                         </>
                       ) : activeMatch ? (
                         <>
-                          <span aria-hidden="true" className="text-slate-300">
+                          <span aria-hidden="true" className="text-blue-400/50">
                             ·
                           </span>
-                          <span className="text-amber-700 font-medium tabular-nums">
+                          <span className="text-amber-300 font-medium tabular-nums">
                             Berikutnya {activeMatch.scheduledTime} WIB
                           </span>
                         </>
@@ -243,25 +261,25 @@ export function OverviewView({
                     </div>
 
                     {activeMatch && teamA && teamB ? (
-                      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-800">
-                        <span className="font-semibold">{teamA.teamName}</span>
-                        <span className="text-slate-400">vs</span>
-                        <span className="font-semibold">{teamB.teamName}</span>
-                        <span className="text-xs text-slate-500">
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-blue-100">
+                        <span className="font-semibold text-white">{teamA.teamName}</span>
+                        <span className="text-blue-300/60">vs</span>
+                        <span className="font-semibold text-white">{teamB.teamName}</span>
+                        <span className="text-xs text-blue-200/75">
                           ({category?.name} · {activeMatch.stage})
                         </span>
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-400">Belum ada pertandingan dijadwalkan</p>
+                      <p className="text-sm text-blue-300/60">Belum ada pertandingan dijadwalkan</p>
                     )}
                   </div>
 
                   {activeMatch && (
                     <div className="flex items-center gap-3 shrink-0">
                       {liveOnCourt && (
-                        <div className="text-right font-mono text-sm font-bold text-slate-900 tabular-nums">
+                        <div className="text-right font-mono text-sm font-bold text-white tabular-nums">
                           <span>{formatScoreSummary(liveOnCourt.score)}</span>
-                          <span className="ml-2 text-blue-700">
+                          <span className="ml-2 text-sky-300">
                             ({liveOnCourt.score.currentPointA}-{liveOnCourt.score.currentPointB})
                           </span>
                         </div>
@@ -269,7 +287,7 @@ export function OverviewView({
                       <button
                         type="button"
                         onClick={() => onOpenOperatorMatch(activeMatch.id)}
-                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                       >
                         Input Skor
                       </button>
@@ -282,22 +300,22 @@ export function OverviewView({
         </div>
 
         {/* Category Summary */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-[#0A1D52] border border-[#1B3782] rounded-xl overflow-hidden flex flex-col justify-between">
           <div>
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4">
+            <div className="px-6 py-4 border-b border-[#1B3782] flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Kategori Turnamen</h2>
-                <p className="text-xs text-slate-500">Kapasitas pasangan & jadwal per kategori</p>
+                <h2 className="text-base font-bold text-white">Kategori Turnamen</h2>
+                <p className="text-xs text-blue-200/75">Kapasitas pasangan &amp; jadwal per kategori</p>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('participants')}
-                className="text-xs font-semibold text-blue-700 hover:text-blue-800 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                className="text-xs font-semibold text-sky-300 hover:text-sky-200 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
               >
                 Kelola Peserta <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="divide-y divide-slate-200">
+            <div className="divide-y divide-[#1B3782]">
               {state.categories.map((cat) => {
                 const count = state.teams.filter(
                   (t) => t.categoryId === cat.id && t.status !== 'withdrawn'
@@ -309,18 +327,18 @@ export function OverviewView({
                   <div key={cat.id} className="px-6 py-4 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{cat.name}</p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-sm font-semibold text-white">{cat.name}</p>
+                        <p className="text-xs text-blue-200/75">
                           {cat.level} · {catMatches} pertandingan
                         </p>
                       </div>
-                      <span className="text-sm font-mono font-semibold text-slate-800 tabular-nums">
+                      <span className="text-sm font-mono font-semibold text-blue-100 tabular-nums">
                         {count}/{cat.maxTeams} tim
                       </span>
                     </div>
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 bg-[#06133B] rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-blue-700 rounded-full transition-all"
+                        className="h-full bg-blue-500 rounded-full transition-all"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -330,22 +348,22 @@ export function OverviewView({
             </div>
           </div>
 
-          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="px-6 py-4 bg-[#071540] border-t border-[#1B3782] flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
               onClick={() => onNavigate('leaderboard')}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-100 hover:text-white cursor-pointer"
             >
-              <Trophy className="w-4 h-4 text-amber-600" />
+              <Trophy className="w-4 h-4 text-amber-400" />
               Buka Live Leaderboard
             </button>
             <button
               type="button"
-              onClick={() => onNavigate('whatsapp')}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-800 cursor-pointer"
+              onClick={() => onNavigate('venue')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-300 hover:text-sky-200 cursor-pointer"
             >
-              <CalendarClock className="w-4 h-4" />
-              Log Notifikasi WhatsApp ({state.whatsappLogs.length})
+              <MapPin className="w-4 h-4" />
+              Lihat Denah Venue
             </button>
           </div>
         </div>

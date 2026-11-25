@@ -178,6 +178,7 @@ export async function dispatchMatchWhatsAppNotifications(
   const seenNumbers = new Set<string>();
 
   for (const player of recipients) {
+    if (!player.whatsapp) continue;
     const normalized = normalizeWhatsAppNumber(player.whatsapp);
     if (!normalized || seenNumbers.has(normalized)) continue;
     seenNumbers.add(normalized);
